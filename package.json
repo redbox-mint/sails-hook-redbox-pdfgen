@@ -1,15 +1,16 @@
 {
   "name": "@redbox/sails-hook-redbox-pdfgen",
   "version": "1.0.0",
-  "description": "A Sails Hook Template",
+  "description": "Adds PDF generation functionality for records to ReDBox",
   "main": "index.js",
   "sails": {
     "isHook": true,
     "hookName": "template"
   },
   "scripts": {
+    "build": "node_modules/typescript/bin/tsc",
     "test": "NODE_ENV=test node_modules/.bin/mocha",
-    "runDev": "docker-compose -f support/development/docker-compose.yml up"
+    "runDev": "./runFoDev.sh"
   },
   "repository": {
     "type": "git",
@@ -26,7 +27,8 @@
     "@types/node": "^10.12.11",
     "mocha": "^5.1.1",
     "sails": "^1.0.2",
-    "supertest": "^3.0.0"
+    "supertest": "^3.0.0",
+    "typescript": "2.9"
   },
   "dependencies": {
     "fs": "^0.0.1-security",
