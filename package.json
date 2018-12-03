@@ -37,5 +37,8 @@
     "puppeteer": "^1.11.0",
     "rxjs": "6.3.3",
     "rxjs-compat": "6.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
