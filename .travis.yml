@@ -9,12 +9,6 @@ env:
   - COMMIT=${TRAVIS_COMMIT::8}
   - CXX=g++-4.9
   - secure: nLD2DJ1YDdzEWvekmDlPBc+2aSKql88q0HbMUoQbyBYCmRUjsG/27JSaJPDTmcPu9/0+wD9QHxG0fJAnvmUqmd+tSwzpu7LWCU8FDg3M4RdWOLqZtErlZjbAEvD2jTUOVvWz/BIjnMAI2CySTKsYq9G0qAY5Zd2SOcpf2beV/Jg9j5IexhBKgCjQ+adLSQM7fp6+AExOOG59m8o8MKcmFpv0H66xIRlsSPS3jVO0GCuvm6UvxFqwDlN+n63Srihstav7/meCcbisb+XyrqejIRoLdeoSL1XVkrY9ecgK57/Cj5G73+IvTfye0pf3wwLjWESJL16T99hO5MoAOrf+mJvJFgdlW20evfdgRP0ncEGrigPUhVixI6IcRLcaXiUb5b4GzSkxoSx3X2ngkaQc5cks5KzCTCy3jHZw7Qrr41EHJTfcT5vLaDb1PatT1ZwP4zPnSeLm+9XXEvDULDRhR9PzLLf8AaGjyQ6QtpwLVEcERf1hjq+QbmewpqLbli1COVRbKPQZgIC2T9B3QOiLze5fbu2Z638OMUgloR9mdYky2BIBeDNf30Zh1lYH18uTdlyvDLEwrw5BTdbNqJ1T1eXsKdIYcwjtftBfwswFl9ybpA4rjx5gX0GDMJAmDJ/xUVVyE6wMnaL7kJVRV5X8HpnuF4HHRdkkJ+0OSkKJxYw=
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - g++-4.9
 jobs:
   include:
   - stage: Build the hook
@@ -24,5 +18,6 @@ jobs:
       provider: npm
       email: "dev@redboxresearchdata.com.au"
       api_key: "$NPM_API_KEY"
+      skip_cleanup: true
       on: 
         tags: true
