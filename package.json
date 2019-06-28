@@ -32,9 +32,9 @@
   },
   "dependencies": {
     "fs": "^0.0.1-security",
-    "lodash": "^4.17.10",
+    "lodash": "^4.17.11",
     "moment-es6": "^1.0.0",
-    "puppeteer": "^1.11.0",
+    "puppeteer": "^1.18.1",
     "rxjs": "6.3.3",
     "rxjs-compat": "6.3.3"
   },
