@@ -5,7 +5,7 @@ An installable hook for the ReDBox Portal to add PDF generation functionality fo
 ## Installation
 In your redbox portal root folder run the command:
 
-```yarn add @redbox/sails-hook-redbox-pdfgen```
+```yarn add @researchdatabox/sails-hook-redbox-pdfgen```
 
 ## Configuration
 
