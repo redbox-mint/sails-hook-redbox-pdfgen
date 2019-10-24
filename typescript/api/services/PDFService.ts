@@ -21,7 +21,7 @@ import { Observable } from 'rxjs/Rx';
 import services = require('../core/CoreService.js');
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
-import fs = require('fs');
+import fs = require('fs-extra');
 import moment from 'moment-es6';
 
 
@@ -71,6 +71,10 @@ export module Services {
           const date = moment().format('x');
           const pdfPrefix = options['pdfPrefix']
           const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
+          const targetDir = sails.config.record.attachments.stageDir;
+          if (! await fs.exists(targetDir, {recursive:true})) {
+            await fs.mkdir(targetDir);
+          }
           const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
           let defaultPDFOptions = {
             path: fpath,
