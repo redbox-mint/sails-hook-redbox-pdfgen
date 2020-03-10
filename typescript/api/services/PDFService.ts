@@ -63,7 +63,8 @@ export module Services {
         Authorization: 'Bearer '+ token
       });
       //TODO: get branding name from record
-      let currentURL = `${sails.config.appUrl}/default/rdmp/record/view/${oid}`;
+      let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
+      let currentURL = `${sails.config.appUrl}${sourceUrlBase}/${oid}`;
       page
         .waitForSelector(options['waitForSelector'], { timeout: 60000 })
         .then(async () => {
