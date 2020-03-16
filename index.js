@@ -15,8 +15,9 @@ module.exports = function (sails) {
       after: {}
     },
     configure: function () {
-      sails.log.error('PDF SERVICE INITIALISING')
-      sails.log.error(PDFService)
+      sails.log.verbose('PDF SERVICE INITIALISING')
+      sails.log.verbose(PDFService);
+      PDFService.initPool();
       sails.services['pdfservice'] = PDFService;
     }
   }

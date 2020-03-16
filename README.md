@@ -2,6 +2,8 @@
 
 An installable hook for the ReDBox Portal to add PDF generation functionality for records using Puppeteer.
 
+Note: this plugin has been extended to allow for creating browser pools, see config item below.
+
 ## Installation
 In your redbox portal root folder run the command:
 
@@ -17,7 +19,7 @@ The service is designed to run using the record post-save trigger functionality.
 | pdf-prefix      | The prefix of the filename that will be generated. PDFs will be stored as datastreams (attachments) to the record with this parameter as a prefix followed by an ISO8601 datestring. e.g. rdmp-pdf-201901021000.pdf                                                                                                                                                                                                                                  | Yes      |
 | token           | An API access token that puppeteer will use to access the record. This needs to be generated for a user on the User Management page of the system. The user must also have appropriate roles set so that it has appropriate permissions to view the record.                                                                                                                                                                                          | Yes      |
 
-### Example configuration
+### Example RecordType configuration
 
 ```
 hooks: {
@@ -44,3 +46,8 @@ hooks: {
       }
     },
 ```
+
+### System-wide configuration
+
+`sails.config.pdfgen.minPool` - mininum number of browser instances in the pool
+`sails.config.pdfgen.maxPool` - maximum number of browser instances in the pool
