@@ -43,6 +43,7 @@ export module Services {
    */
   export class PDF extends services.Services.Core.Service {
 
+    public processMap: any = {};
     public pool: any;
 
     protected _exportedMethods: any = [
@@ -51,8 +52,8 @@ export module Services {
     ];
 
     public initPool() {
-      const browserPoolMin = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.min) ? 2 : _.toNumber(sails.config.pdfgen.min);
-      const browserPoolMax =  _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.max) ? 10 : _.toNumber(sails.config.pdfgen.max);
+      const browserPoolMin = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.minPool) ? 2 : _.toNumber(sails.config.pdfgen.minPool);
+      const browserPoolMax =  _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.maxPool) ? 10 : _.toNumber(sails.config.pdfgen.maxPool);
       this.pool = createPuppeteerPool({
         min: browserPoolMin,
         max: browserPoolMax,
@@ -61,67 +62,65 @@ export module Services {
     }
 
     private async generatePDF(oid: string, record: any, options: any) {
-      const browser = await this.pool.acquire();
-      const page = await browser.newPage();
+      sails.log.verbose("PDFService::Creating PDF for: " + oid);
       const token = options['token']? options['token'] : undefined;
 
       if(token == undefined) {
         sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
         return;
       }
+      const browser = await this.pool.acquire();
+      const page = await browser.newPage();
       page.setExtraHTTPHeaders({
         Authorization: 'Bearer '+ token
       });
       //TODO: get branding name from record
       let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
       let currentURL = `${sails.config.appUrl}${sourceUrlBase}/${oid}`;
-      try {
-        page
-          .waitForSelector(options['waitForSelector'], { timeout: 60000 })
-          .then(async () => {
-            sails.log.verbose(`PDFService::loaded page: ${currentURL}, waiting further...`);
-            await this.delay(1500);
-            const date = moment().format('x');
-            const pdfPrefix = options['pdfPrefix']
-            const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
-            const targetDir = sails.config.record.attachments.stageDir;
-            sails.log.verbose(`PDFService::Checking target dir: ${targetDir}`);
-            await fs.ensureDir(targetDir);
-            sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
-            const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
-            let defaultPDFOptions = {
-              path: fpath,
-              format: 'A4',
-              printBackground: true
-            };
-            if (options['PDFOptions']) {
-              // We don't want the file path to be overriden
-              delete options['PDFOptions']['path'];
-              defaultPDFOptions = _.merge(defaultPDFOptions, options['PDFOptions']);
-            }
-            await page.pdf(defaultPDFOptions);
-            sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
-            await page.close();
-            await this.pool.release(browser);
-            sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
-            Observable.fromPromise(RecordsService.addDatastream(oid, fileId)).subscribe(response => {
-              sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
-            });
-
-          });
-        } catch (e) {
-          sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
-          sails.log.error(e);
-          sails.log.error(JSON.stringify(e));
-        }
+      this.processMap[currentURL] = true;
       sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
       await page.goto(currentURL);
+      try {
+        await page.waitForSelector(options['waitForSelector'], { timeout: 60000 });
+        sails.log.verbose(`PDFService::loaded page: ${currentURL}, waiting further...`);
+        await this.delay(1500);
+        const date = moment().format('x');
+        const pdfPrefix = options['pdfPrefix']
+        const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
+        const targetDir = sails.config.record.attachments.stageDir;
+        sails.log.verbose(`PDFService::Checking target dir: ${targetDir}`);
+        await fs.ensureDir(targetDir);
+        sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
+        const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
+        let defaultPDFOptions = {
+          path: fpath,
+          format: 'A4',
+          printBackground: true
+        };
+        if (options['PDFOptions']) {
+          // We don't want the file path to be overriden
+          delete options['PDFOptions']['path'];
+          defaultPDFOptions = _.merge(defaultPDFOptions, options['PDFOptions']);
+        }
+        await page.pdf(defaultPDFOptions);
+        sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
+        await page.close();
+        await this.pool.release(browser);
+        sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
+
+        const savePdfResponse = await RecordsService.addDatastream(oid, fileId);
+        sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
+        _.unset(this.processMap[currentURL]);
+      } catch (e) {
+        sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
+        sails.log.error(e);
+        sails.log.error(JSON.stringify(e));
+      }
+      return record;
     }
 
     public createPDF(oid, record, options, user) {
-      sails.log.verbose("PDFService::Creating PDF for: " + oid);
-      this.generatePDF(oid, record, options);
-      return Observable.of({});
+      return Observable.fromPromise(this.generatePDF(oid, record, options));
     }
 
     private delay(time) {
