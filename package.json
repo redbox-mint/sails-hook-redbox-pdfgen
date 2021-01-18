@@ -34,7 +34,7 @@
     "@invertase/puppeteer-pool": "^0.0.2",
     "fs": "^0.0.1-security",
     "lodash": "^4.17.11",
-    "moment-es6": "^1.0.0",
+    "moment": "^2.27.0",
     "puppeteer": "^1.18.1",
     "rxjs": "6.3.3",
     "rxjs-compat": "6.3.3"

@@ -22,9 +22,9 @@ import services = require('../core/CoreService.js');
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
 import fs = require('fs-extra');
-import moment from 'moment-es6';
+import moment = require('moment'); 
 import createPuppeteerPool = require('@invertase/puppeteer-pool');
-
+import Datastream from '../core/Datastream';
 
 declare var sails: Sails;
 declare var RecordType: Model;
@@ -63,9 +63,22 @@ export module Services {
 
     private async generatePDF(oid: string, record: any, options: any) {
       sails.log.verbose("PDFService::Creating PDF for: " + oid);
+      // Added to support storage backend hooks, degrading gracefully
+      let datastreamService = RecordsService;
+      let compatMode = false;
+      if (_.isEmpty(sails.config.record) || _.isEmpty(sails.config.record.datastreamService)) {
+        if (!_.isEmpty(datastreamService.addDatastream) && _.isFunction(datastreamService.addDatastream)) {
+          sails.log.warn(`PDFService::Plugin is guessing which DatastreamService to use, please set 'sails.config.record.datastreamService' explicitly or use the appropriate version of the PDF plugin.`);
+          compatMode = true;
+        } else {
+          sails.log.error(`PDFService::Failed to retrieve datastream service name, please set 'sails.config.storage.serviceName'`);
+          return;
+        }
+      } else {
+        datastreamService = sails.services[sails.config.storage.serviceName];
+      }
       const token = options['token']? options['token'] : undefined;
-
-      if(token == undefined) {
+      if (token == undefined) {
         sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
         return;
       }
@@ -107,8 +120,13 @@ export module Services {
         await page.close();
         await this.pool.release(browser);
         sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
-
-        const savePdfResponse = await RecordsService.addDatastream(oid, fileId);
+        let savedPdfResponse = null;
+        if (compatMode) {
+          savedPdfResponse = await datastreamService.addDatastream(oid, fileId);
+        } else {
+          const datastream = new Datastream({fileId: fileId, name: fileId});
+          savedPdfResponse = await datastreamService.addDatastream(oid, datastream);
+        }
         sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
         _.unset(this.processMap[currentURL]);
       } catch (e) {
