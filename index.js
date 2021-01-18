@@ -7,11 +7,11 @@ module.exports = function (sails) {
       sails.log.verbose('PDF SERVICE INITIALISING')
       // Do Some initialisation tasks
       let PDFService = null;
-      if (_.isFunction(configService.mergeHookConfig)) {
+      if (!_.isEmpty(configService) && _.isFunction(configService.mergeHookConfig)) {
         configService.mergeHookConfig('@researchdatabox/sails-hook-redbox-pdfgen', sails.config);
         PDFService = sails.services['pdfservice'];
       } else {
-        sails.log.warns("Warning PDF Plugin in compatibility mode.");
+        sails.log.warn("Warning PDF Plugin in compatibility mode.");
         PDFService = require('./api/services/PDFService');
         sails.services['pdfservice'] = PDFService;
       }
