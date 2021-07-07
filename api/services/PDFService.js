@@ -1,18 +1,20 @@
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
         function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Services = void 0;
 const Rx_1 = require("rxjs/Rx");
 const services = require("../core/CoreService.js");
+const puppeteer_1 = require("puppeteer");
 const fs = require("fs-extra");
 const moment = require("moment");
-const createPuppeteerPool = require("@invertase/puppeteer-pool");
 const Datastream_1 = require("../core/Datastream");
 var Services;
 (function (Services) {
@@ -26,13 +28,6 @@ var Services;
             ];
         }
         initPool() {
-            const browserPoolMin = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.minPool) ? 2 : _.toNumber(sails.config.pdfgen.minPool);
-            const browserPoolMax = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.maxPool) ? 10 : _.toNumber(sails.config.pdfgen.maxPool);
-            this.pool = createPuppeteerPool({
-                min: browserPoolMin,
-                max: browserPoolMax,
-                puppeteerLaunchArgs: [{ headless: true, args: ['--no-sandbox'] }]
-            });
         }
         generatePDF(oid, record, options) {
             return __awaiter(this, void 0, void 0, function* () {
@@ -50,14 +45,21 @@ var Services;
                     }
                 }
                 else {
+                    sails.log.verbose(`PDFService::Using datastreamService: ${sails.config.storage.serviceName}`);
                     datastreamService = sails.services[sails.config.storage.serviceName];
+                    if (_.isUndefined(datastreamService)) {
+                        sails.log.error(`PDFService::Could not find service!`);
+                        return;
+                    }
                 }
                 const token = options['token'] ? options['token'] : undefined;
                 if (token == undefined) {
                     sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
                     return;
                 }
-                const browser = yield this.pool.acquire();
+                sails.log.verbose(`PDFService::Acquiring browser from pool....`);
+                const browser = yield puppeteer_1.launch({ executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox'] });
+                sails.log.verbose(`PDFService::Creating new page....`);
                 const page = yield browser.newPage();
                 page.setExtraHTTPHeaders({
                     Authorization: 'Bearer ' + token
@@ -91,7 +93,7 @@ var Services;
                     yield page.pdf(defaultPDFOptions);
                     sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
                     yield page.close();
-                    yield this.pool.release(browser);
+                    yield browser.close();
                     sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
                     let savedPdfResponse = null;
                     if (compatMode) {

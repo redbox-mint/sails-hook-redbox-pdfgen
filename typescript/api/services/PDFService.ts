@@ -52,13 +52,13 @@ export module Services {
     ];
 
     public initPool() {
-      const browserPoolMin = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.minPool) ? 2 : _.toNumber(sails.config.pdfgen.minPool);
-      const browserPoolMax =  _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.maxPool) ? 10 : _.toNumber(sails.config.pdfgen.maxPool);
-      this.pool = createPuppeteerPool({
-        min: browserPoolMin,
-        max: browserPoolMax,
-        puppeteerLaunchArgs: [{ headless: true, args: ['--no-sandbox'] }]
-      });
+      // const browserPoolMin = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.minPool) ? 2 : _.toNumber(sails.config.pdfgen.minPool);
+      // const browserPoolMax =  _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.maxPool) ? 10 : _.toNumber(sails.config.pdfgen.maxPool);
+      // this.pool = createPuppeteerPool({
+      //   min: browserPoolMin,
+      //   max: browserPoolMax,
+      //   puppeteerLaunchArgs: [{ headless: true, args: ['--no-sandbox'] }]
+      // });
     }
 
     private async generatePDF(oid: string, record: any, options: any) {
@@ -75,14 +75,22 @@ export module Services {
           return;
         }
       } else {
+        sails.log.verbose(`PDFService::Using datastreamService: ${sails.config.storage.serviceName}`);
         datastreamService = sails.services[sails.config.storage.serviceName];
+        if (_.isUndefined(datastreamService)) {
+          sails.log.error(`PDFService::Could not find service!`);
+          return;
+        }
       }
       const token = options['token']? options['token'] : undefined;
       if (token == undefined) {
         sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
         return;
       }
-      const browser = await this.pool.acquire();
+      sails.log.verbose(`PDFService::Acquiring browser from pool....`);
+      // const browser = await this.pool.acquire();
+      const browser = await launch({executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox'] });
+      sails.log.verbose(`PDFService::Creating new page....`)
       const page = await browser.newPage();
       page.setExtraHTTPHeaders({
         Authorization: 'Bearer '+ token
@@ -118,7 +126,8 @@ export module Services {
         await page.pdf(defaultPDFOptions);
         sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
         await page.close();
-        await this.pool.release(browser);
+        // await this.pool.release(browser);
+        await browser.close();
         sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
         let savedPdfResponse = null;
         if (compatMode) {

@@ -7,7 +7,21 @@ Note: this plugin has been extended to allow for creating browser pools, see con
 ## Installation
 In your redbox portal root folder run the command:
 
-```yarn add @researchdatabox/sails-hook-redbox-pdfgen```
+```npm i @researchdatabox/sails-hook-redbox-pdfgen```
+
+### 1.2.6 only
+Before installing this plugin, install Chrome manually:
+```
+apt-get update \
+    && apt-get install -y wget gnupg \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
+      --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+```
+Then set `export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true`
 
 ## Configuration
 
@@ -51,3 +65,4 @@ hooks: {
 
 `sails.config.pdfgen.minPool` - mininum number of browser instances in the pool
 `sails.config.pdfgen.maxPool` - maximum number of browser instances in the pool
+
