@@ -18,13 +18,13 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import { Observable } from 'rxjs/Rx';
-import services = require('../core/CoreService.js');
+
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
 import fs = require('fs-extra');
 import moment = require('moment'); 
-import createPuppeteerPool = require('@invertase/puppeteer-pool');
-import Datastream from '../core/Datastream';
+
+import { Services as service, Datastream } from '@researchdatabox/redbox-core-types';
 
 declare var sails: Sails;
 declare var RecordType: Model;
@@ -41,7 +41,7 @@ export module Services {
    * Author: <a href='https://github.com/shilob' target='_blank'>Shilo Banihit</a>
    *
    */
-  export class PDF extends services.Services.Core.Service {
+  export class PDF extends service.Core.Service {
 
     public processMap: any = {};
     public pool: any;
@@ -52,13 +52,7 @@ export module Services {
     ];
 
     public initPool() {
-      // const browserPoolMin = _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.minPool) ? 2 : _.toNumber(sails.config.pdfgen.minPool);
-      // const browserPoolMax =  _.isUndefined(sails.config.pdfgen) || _.isUndefined(sails.config.pdfgen.maxPool) ? 10 : _.toNumber(sails.config.pdfgen.maxPool);
-      // this.pool = createPuppeteerPool({
-      //   min: browserPoolMin,
-      //   max: browserPoolMax,
-      //   puppeteerLaunchArgs: [{ headless: true, args: ['--no-sandbox'] }]
-      // });
+
     }
 
     private async generatePDF(oid: string, record: any, options: any) {
@@ -113,7 +107,7 @@ export module Services {
         await fs.ensureDir(targetDir);
         sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
         const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
-        let defaultPDFOptions = {
+        let defaultPDFOptions:any = {
           path: fpath,
           format: 'A4',
           printBackground: true
@@ -142,6 +136,12 @@ export module Services {
         sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
         sails.log.error(e);
         sails.log.error(JSON.stringify(e));
+        try{
+          await browser.close();
+        } catch (e) {
+          sails.log.error(`PDFService:: Failed to close browser after error`);
+          sails.log.error(e);
+        }
       }
       return record;
     }

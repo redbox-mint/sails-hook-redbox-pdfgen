@@ -11,14 +11,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Services = void 0;
 const Rx_1 = require("rxjs/Rx");
-const services = require("../core/CoreService.js");
 const puppeteer_1 = require("puppeteer");
 const fs = require("fs-extra");
 const moment = require("moment");
-const Datastream_1 = require("../core/Datastream");
+const redbox_core_types_1 = require("@researchdatabox/redbox-core-types");
 var Services;
 (function (Services) {
-    class PDF extends services.Services.Core.Service {
+    class PDF extends redbox_core_types_1.Services.Core.Service {
         constructor() {
             super(...arguments);
             this.processMap = {};
@@ -100,7 +99,7 @@ var Services;
                         savedPdfResponse = yield datastreamService.addDatastream(oid, fileId);
                     }
                     else {
-                        const datastream = new Datastream_1.default({ fileId: fileId, name: fileId });
+                        const datastream = new redbox_core_types_1.Datastream({ fileId: fileId, name: fileId });
                         savedPdfResponse = yield datastreamService.addDatastream(oid, datastream);
                     }
                     sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
@@ -110,6 +109,13 @@ var Services;
                     sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
                     sails.log.error(e);
                     sails.log.error(JSON.stringify(e));
+                    try {
+                        yield browser.close();
+                    }
+                    catch (e) {
+                        sails.log.error(`PDFService:: Failed to close browser after error`);
+                        sails.log.error(e);
+                    }
                 }
                 return record;
             });
