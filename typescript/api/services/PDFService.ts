@@ -23,6 +23,8 @@ import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
 import fs = require('fs-extra');
 import moment = require('moment'); 
+const os = require('os');
+const path = require('path');
 
 import { Services as service, Datastream } from '@researchdatabox/redbox-core-types';
 
@@ -82,8 +84,11 @@ export module Services {
         return;
       }
       sails.log.verbose(`PDFService::Acquiring browser from pool....`);
-      // const browser = await this.pool.acquire();
-      const browser = await launch({executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox'] });
+
+      //Ensure the user data dir is new each run so that the browser is completely clean
+      const tmpUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfgen'));
+      const browser = await launch({executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
+
       sails.log.verbose(`PDFService::Creating new page....`)
       const page = await browser.newPage();
       page.setExtraHTTPHeaders({
@@ -142,6 +147,12 @@ export module Services {
           sails.log.error(`PDFService:: Failed to close browser after error`);
           sails.log.error(e);
         }
+      } finally {
+        // clean up in case browser didn't close properly
+        if (browser && browser.process() != null) { 
+          browser.process().kill('SIGINT');
+        }
+        fs.removeSync(tmpUserDataDir, { recursive: true });
       }
       return record;
     }

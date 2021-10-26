@@ -14,6 +14,8 @@ const Rx_1 = require("rxjs/Rx");
 const puppeteer_1 = require("puppeteer");
 const fs = require("fs-extra");
 const moment = require("moment");
+const os = require('os');
+const path = require('path');
 const redbox_core_types_1 = require("@researchdatabox/redbox-core-types");
 var Services;
 (function (Services) {
@@ -57,7 +59,10 @@ var Services;
                     return;
                 }
                 sails.log.verbose(`PDFService::Acquiring browser from pool....`);
-                const browser = yield puppeteer_1.launch({ executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox'] });
+                const tmpUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfgen'));
+                const browser = yield puppeteer_1.launch({ executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
+                sails.log.error("BROWSER PROCESS");
+                sails.log.error(browser.process());
                 sails.log.verbose(`PDFService::Creating new page....`);
                 const page = yield browser.newPage();
                 page.setExtraHTTPHeaders({
@@ -116,6 +121,12 @@ var Services;
                         sails.log.error(`PDFService:: Failed to close browser after error`);
                         sails.log.error(e);
                     }
+                }
+                finally {
+                    if (browser && browser.process() != null) {
+                        browser.process().kill('SIGINT');
+                    }
+                    fs.removeSync(tmpUserDataDir, { recursive: true });
                 }
                 return record;
             });
