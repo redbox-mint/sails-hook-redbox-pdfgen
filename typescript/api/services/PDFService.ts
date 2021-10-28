@@ -150,7 +150,7 @@ export module Services {
       } finally {
         // clean up in case browser didn't close properly
         if (browser && browser.process() != null) { 
-          browser.process().kill('SIGINT');
+          browser.process().kill('SIGTERM');
         }
         fs.removeSync(tmpUserDataDir, { recursive: true });
       }
