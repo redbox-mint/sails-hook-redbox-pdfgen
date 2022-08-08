@@ -96,7 +96,11 @@ export module Services {
       });
       //TODO: get branding name from record
       let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
-      let currentURL = `${sails.config.appUrl}${sourceUrlBase}/${oid}`;
+      sails.log.verbose('PDFService::sourceUrlBase '+sourceUrlBase);
+      sails.log.verbose('PDFService::sails.config.pdfServiceAppUrlOverride '+sails.config.pdfServiceAppUrlOverride);
+      let pdfServiceAppUrlOverride = sails.config.pdfServiceAppUrlOverride;
+      let baseUrl = pdfServiceAppUrlOverride || sails.config.appUrl;
+      let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
       this.processMap[currentURL] = true;
       sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
       await page.goto(currentURL);
