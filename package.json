@@ -1,6 +1,6 @@
 {
   "name": "@researchdatabox/sails-hook-redbox-pdfgen",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Adds PDF generation functionality for records to ReDBox",
   "main": "index.js",
   "sails": {

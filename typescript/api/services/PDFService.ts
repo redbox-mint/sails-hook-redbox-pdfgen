@@ -71,8 +71,8 @@ export module Services {
           return;
         }
       } else {
-        sails.log.verbose(`PDFService::Using datastreamService: ${sails.config.storage.serviceName}`);
-        datastreamService = sails.services[sails.config.storage.serviceName];
+        sails.log.verbose(`PDFService::Using datastreamService: ${sails.config.record.datastreamService}`);
+        datastreamService = sails.services[sails.config.record.datastreamService];
         if (_.isUndefined(datastreamService)) {
           sails.log.error(`PDFService::Could not find service!`);
           return;
@@ -94,11 +94,25 @@ export module Services {
       page.setExtraHTTPHeaders({
         Authorization: 'Bearer '+ token
       });
+      // using string flag so we can inject via env var
+      if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
+        page.on('console', msg => sails.log.verbose(`PDFService::Chrome Console:${msg.text}`));
+        page.on('pageerror', error => {
+          sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
+        });
+        page.on('response', response => {
+          sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${ response.url}`);
+        });
+        page.on('requestfailed', request => {
+          sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
+        });
+      }
       //TODO: get branding name from record
       let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
+      let pdfgenAppUrlOverride = _.get(sails.config, 'pdfgen.appUrlOverride');
       sails.log.verbose('PDFService::sourceUrlBase '+sourceUrlBase);
-      sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride '+sails.config.pdfgen.appUrlOverride);
-      let pdfgenAppUrlOverride = sails.config.pdfgen.appUrlOverride;
+      sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride '+pdfgenAppUrlOverride);
+      
       let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
       let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
       this.processMap[currentURL] = true;
