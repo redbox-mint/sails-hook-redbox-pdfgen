@@ -16,7 +16,6 @@ module.exports = function (sails) {
         sails.services['pdfservice'] = PDFService;
       }
       sails.log.verbose(PDFService);
-      PDFService.initPool();
       return cb();
     },
     //If each route middleware do not exist sails.lift will fail during hook.load()

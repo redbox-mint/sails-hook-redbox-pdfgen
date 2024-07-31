@@ -22,7 +22,7 @@ import { Observable } from 'rxjs/Rx';
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
 import fs = require('fs-extra');
-import moment = require('moment'); 
+import moment = require('moment');
 const os = require('os');
 const path = require('path');
 
@@ -46,19 +46,14 @@ export module Services {
   export class PDF extends service.Core.Service {
 
     public processMap: any = {};
-    public pool: any;
 
     protected _exportedMethods: any = [
       'createPDF',
-      'initPool'
     ];
-
-    public initPool() {
-
-    }
 
     private async generatePDF(oid: string, record: any, options: any) {
       sails.log.verbose("PDFService::Creating PDF for: " + oid);
+
       // Added to support storage backend hooks, degrading gracefully
       let datastreamService = RecordsService;
       let compatMode = false;
@@ -74,54 +69,71 @@ export module Services {
         sails.log.verbose(`PDFService::Using datastreamService: ${sails.config.record.datastreamService}`);
         datastreamService = sails.services[sails.config.record.datastreamService];
         if (_.isUndefined(datastreamService)) {
-          sails.log.error(`PDFService::Could not find service!`);
+          sails.log.error(`PDFService::Could not find datastreamService!`);
           return;
         }
       }
+
+      // Check that the token is provided
       const token = options['token']? options['token'] : undefined;
       if (token == undefined) {
         sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
         return;
       }
-      sails.log.verbose(`PDFService::Acquiring browser from pool....`);
 
-      //Ensure the user data dir is new each run so that the browser is completely clean
-      const tmpUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfgen'));
-      const browser = await launch({executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
-
-      sails.log.verbose(`PDFService::Creating new page....`)
-      const page = await browser.newPage();
-      page.setExtraHTTPHeaders({
-        Authorization: 'Bearer '+ token
-      });
-      // using string flag so we can inject via env var
-      if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
-        page.on('console', msg => sails.log.verbose(`PDFService::Chrome Console:${msg.text}`));
-        page.on('pageerror', error => {
-          sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
-        });
-        page.on('response', response => {
-          sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${ response.url}`);
-        });
-        page.on('requestfailed', request => {
-          sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
-        });
-      }
-      //TODO: get branding name from record
-      let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
-      let pdfgenAppUrlOverride = _.get(sails.config, 'pdfgen.appUrlOverride');
-      sails.log.verbose('PDFService::sourceUrlBase '+sourceUrlBase);
-      sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride '+pdfgenAppUrlOverride);
-      
-      let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
-      let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
-      this.processMap[currentURL] = true;
-      sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
-      await page.goto(currentURL);
+      let browser;
+      let tmpUserDataDir;
       try {
+        // Start the browser
+        sails.log.verbose(`PDFService::Launching browser....`);
+        // Ensure the user data dir is new each run so that the browser is completely clean
+        tmpUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfgen'));
+        // Use the default executablePath with the 'chrome-headless-shell' headless mode
+        // https://pptr.dev/guides/headless-modes/
+        browser = await launch({headless: 'shell', args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
+
+        // Create a browser page
+        sails.log.verbose(`PDFService::Creating new page....`)
+        const page = await browser.newPage();
+        page.setExtraHTTPHeaders({
+          Authorization: 'Bearer '+ token
+        });
+        // using string flag so we can inject via env var
+        if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
+          page.on('console', msg => {
+            sails.log.verbose(`PDFService::Chrome Console:${msg.text}`)
+          });
+          page.on('pageerror', error => {
+            sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
+          });
+          page.on('response', response => {
+            sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${ response.url}`);
+          });
+          page.on('requestfailed', request => {
+            sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
+          });
+        }
+
+        // Determine the url to visit
+        //TODO: get branding name from record
+        let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
+        let pdfgenAppUrlOverride = _.get(sails.config, 'pdfgen.appUrlOverride');
+        sails.log.verbose('PDFService::sourceUrlBase '+sourceUrlBase);
+        sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride '+pdfgenAppUrlOverride);
+        let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
+        let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
+        this.processMap[currentURL] = true;
+        sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
+
+        // Go to the page and wait for the page to load
+        await page.goto(currentURL, { waitUntil: 'networkidle2',});
+
+        // Wait for the page selector to be available
         await page.waitForSelector(options['waitForSelector'], { timeout: 60000 });
         sails.log.verbose(`PDFService::loaded page: ${currentURL}, waiting further...`);
         await this.delay(1500);
+
+        // Build the path to the pdf file
         const date = moment().format('x');
         const pdfPrefix = options['pdfPrefix']
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
@@ -130,6 +142,8 @@ export module Services {
         await fs.ensureDir(targetDir);
         sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
         const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
+
+        // Save the pdf file
         let defaultPDFOptions:any = {
           path: fpath,
           format: 'A4',
@@ -142,9 +156,12 @@ export module Services {
         }
         await page.pdf(defaultPDFOptions);
         sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
+
+        // Release browser resources
         await page.close();
-        // await this.pool.release(browser);
         await browser.close();
+
+        // Save the pdf file to the datastream service
         sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
         let savedPdfResponse = null;
         if (compatMode) {
@@ -155,22 +172,27 @@ export module Services {
         }
         sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
         _.unset(this.processMap[currentURL]);
+
       } catch (e) {
         sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
         sails.log.error(e);
         sails.log.error(JSON.stringify(e));
         try{
-          await browser.close();
+          if (browser) {
+            await browser.close();
+          }
         } catch (e) {
           sails.log.error(`PDFService:: Failed to close browser after error`);
           sails.log.error(e);
         }
       } finally {
         // clean up in case browser didn't close properly
-        if (browser && browser.process() != null) { 
+        if (browser && browser.process() != null) {
           browser.process().kill('SIGTERM');
         }
-        fs.removeSync(tmpUserDataDir, { recursive: true });
+        if (tmpUserDataDir) {
+          fs.removeSync(tmpUserDataDir, {recursive: true});
+        }
       }
       return record;
     }
@@ -184,8 +206,6 @@ export module Services {
         setTimeout(resolve, time)
       });
     }
-
   }
-
 }
 module.exports = new Services.PDF().exports();
