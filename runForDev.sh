@@ -90,8 +90,8 @@ if [ $_arg_angular == "on" ]; then
         mkdir sailsWorkingDir;
     fi
     # Starts the docker-container with a watcher to ensure the files are editable for the vagrant user
-    docker-compose -f support/development/docker-compose.yml up | source support/development/monitorSailsWorkingDir.sh sailsWorkingDir
+    docker compose -f support/development/docker-compose.yml up | source support/development/monitorSailsWorkingDir.sh sailsWorkingDir
 else
-    docker-compose -f support/development/docker-compose.yml up;
+    docker compose -f support/development/docker-compose.yml up;
 fi
 # ] <-- needed because of Argbash
