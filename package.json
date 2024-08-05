@@ -10,7 +10,7 @@
   "scripts": {
     "build": "node_modules/typescript/bin/tsc",
     "test": "NODE_ENV=test node_modules/.bin/mocha",
-    "runDev": "./runFoDev.sh"
+    "runDev": "./runForDev.sh"
   },
   "repository": {
     "type": "git",

@@ -43,3 +43,14 @@ Thumbs.db
 angular
 test/angular
 sailsWorkingDir
+
+# local dev
+.circleci/
+.dockerignore
+.editorconfig
+.nvmrc
+Dockerfile
+runForDev.sh
+support/
+typescript/
+tsconfig.json

@@ -45,3 +45,6 @@ Thumbs.db
 test/angular
 sailsWorkingDir
 api/
+
+# local dev
+support/development/.tmp
