@@ -19,7 +19,7 @@ echo "Set up ${SOLR_DIR}"
 
 MONGO_DIR="${TMP_DIR}/mongo"
 sudo mkdir -p "${MONGO_DIR}"
-sudo chown vagrant:vagrant "${MONGO_DIR}"
+sudo chown 1000:1000 "${MONGO_DIR}"
 echo "Set up ${MONGO_DIR}"
 
 SAILS_DIR="${TMP_DIR}/sails"
