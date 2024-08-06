@@ -1,0 +1,29 @@
+
+include:
+  - '../development/docker-compose.yml'
+
+services:
+  mocha:
+    build:
+      context: '../../'
+      dockerfile: 'Dockerfile'
+    environment:
+      - 'NODE_ENV=test'
+    volumes:
+      - '../.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
+      - '../.tmp/attachments:/attachments'
+      - '../../:/opt/sails-hook-redbox-pdfgen'
+    networks:
+      main:
+        aliases:
+          - 'mocha'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      rbportal:
+        condition: 'service_healthy'
+    entrypoint: >-
+      /bin/bash -c "
+      cd /opt/sails-hook-redbox-pdfgen &&
+      npm install &&
+      node_modules/.bin/mocha"

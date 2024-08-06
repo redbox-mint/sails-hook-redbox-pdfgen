@@ -16,12 +16,28 @@ jobs:
           name: Install packages
           command: npm install
       - run:
-          name: Compile typescript
-          command: node_modules/.bin/tsc
+          name: Build this package
+          command: npm run build
       - persist_to_workspace:
           root: .
           paths:
             - .
+
+  test:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: /home/circleci/project
+      - run:
+          name: Run Bruno and Mocha tests
+          command: |
+            npm run dev:host
+            npm run test:bruno:docker
+            npm run test:bruno:docker:clean
+            npm run test:mocha:docker
+            npm run test:mocha:docker:clean
 
   publish:
     docker:
@@ -40,15 +56,14 @@ jobs:
 workflows:
   build_and_publish:
     jobs:
-      - build:
-          filters:
-            tags:
-              ignore: /.*/
-            branches:
-              only: /.*/
+      - build
+      - test:
+          requires:
+            - build
       - publish:
           requires:
             - build
+            - test
           filters:
             tags:
               only: /^v.*/

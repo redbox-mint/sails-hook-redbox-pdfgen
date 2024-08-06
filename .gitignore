@@ -46,5 +46,5 @@ test/angular
 sailsWorkingDir
 api/
 
-# local dev
-support/development/.tmp
+# local dev and test output
+support/.tmp

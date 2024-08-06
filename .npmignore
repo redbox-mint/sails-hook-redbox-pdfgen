@@ -44,13 +44,14 @@ angular
 test/angular
 sailsWorkingDir
 
-# local dev
+# exclude dev and test resources from the built package
 .circleci/
+support/
+test/
+typescript/
 .dockerignore
 .editorconfig
 .nvmrc
 Dockerfile
 runForDev.sh
-support/
-typescript/
 tsconfig.json

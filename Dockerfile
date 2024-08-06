@@ -21,4 +21,16 @@ RUN apt-get update \
 RUN wget --quiet --show-progress -O /usr/local/bin/minio-client https://dl.min.io/client/mc/release/linux-amd64/mc \
     && chmod +x /usr/local/bin/minio-client
 
+RUN mkdir -p /opt/browsers \
+    && chown node:node /opt/browsers
+
+COPY --chown=node:node . /opt/sails-hook-redbox-pdfgen
+
 USER node
+
+# install chrome and chrome-headless-shell
+ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
+ENV PATH=$PATH:/home/node/.npm-global/bin
+ENV PUPPETEER_CACHE_DIR=/opt/browsers
+RUN cd /opt/sails-hook-redbox-pdfgen \
+    && npm install

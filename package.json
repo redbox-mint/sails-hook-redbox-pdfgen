@@ -9,8 +9,17 @@
   },
   "scripts": {
     "build": "node_modules/typescript/bin/tsc",
-    "test": "NODE_ENV=test node_modules/.bin/mocha",
-    "runDev": "./runForDev.sh"
+    "dev:host": "./support/prepare-host.sh",
+    "dev:host:clean": "sudo rm -rf ./support/.tmp",
+    "dev:guest": "./support/prepare-guest.sh",
+    "dev:docker": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f support/development/docker-compose.yml up --remove-orphans",
+    "dev:docker:clean": "docker compose -f support/development/docker-compose.yml down",
+    "dev:run": "./runForDev.sh",
+    "test:mocha:docker": "docker compose -f ./support/test/docker-compose.mocha.yml up --abort-on-container-exit --exit-code-from mocha",
+    "test:mocha:docker:clean": "docker compose -f ./support/test/docker-compose.mocha.yml down",
+    "test:bruno:docker": "docker compose -f ./support/test/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
+    "test:bruno:docker:clean": "docker compose -f ./support/test/docker-compose.bruno.yml down",
+    "test:docker:clean": "npm run test:mocha:docker:clean; npm run test:bruno:docker:clean"
   },
   "repository": {
     "type": "git",
@@ -25,7 +34,8 @@
   "license": "GPL-3.0",
   "devDependencies": {
     "@types/node": "^20.14.13",
-    "mocha": "^10.3.0",
+    "mocha": "^10.7.0",
+    "chai": "^5.1.1",
     "sails": "^1.5.10",
     "stream": "^0.0.3",
     "supertest": "^6.3.4"
@@ -35,7 +45,7 @@
     "fs": "^0.0.1-security",
     "lodash": "^4.17.21",
     "moment": "^2.30.1",
-    "puppeteer": "^22.14.0",
+    "puppeteer": "^22.15.0",
     "rxjs": "6.6.2",
     "rxjs-compat": "6.6.7",
     "typescript": "^5.4.5"

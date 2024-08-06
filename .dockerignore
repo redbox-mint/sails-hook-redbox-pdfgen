@@ -1,1 +1,4 @@
+.circleci/
+.idea/
 node_modules/
+support/.tmp/
