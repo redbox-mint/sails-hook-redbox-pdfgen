@@ -28,7 +28,7 @@ sudo chown 1000:1000 "${SAILS_DIR}"
 echo "Set up ${SAILS_DIR}"
 
 SAILS_WORKING_DIR="${TMP_DIR}/sailsWorkingDir/tmp"
-mkdir -p "${SAILS_WORKING_DIR}";
+sudo mkdir -p "${SAILS_WORKING_DIR}";
 sudo chown -R 1000:1000 "${SAILS_WORKING_DIR}"
 echo "Set up ${SAILS_WORKING_DIR}"
 
