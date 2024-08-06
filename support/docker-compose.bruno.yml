@@ -1,17 +1,17 @@
 include:
-  - '../development/docker-compose.yml'
+  - 'docker-compose.yml'
 
 services:
   bruno:
     build:
-      context: '../../'
-      dockerfile: 'Dockerfile'
+      context: '../'
+      dockerfile: './support/Dockerfile'
     environment:
       - 'NODE_ENV=test'
     volumes:
-      - '../.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
-      - '../.tmp/attachments:/attachments'
-      - '../../:/opt/sails-hook-redbox-pdfgen'
+      - '.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
+      - '.tmp/attachments:/attachments'
+      - '../:/opt/sails-hook-redbox-pdfgen'
     networks:
       main:
         aliases:
@@ -24,7 +24,7 @@ services:
       cd /opt/sails-hook-redbox-pdfgen &&
       npm install -g @usebruno/cli &&
       cd /opt/sails-hook-redbox-pdfgen/test/bruno &&
-      /opt/sails-hook-redbox-pdfgen/node_modules/.bin/bru run
+      bru run
       --env test
       --format junit
       --output /opt/sails-hook-redbox-pdfgen/support/.tmp/junit/backend-bruno/backend-bruno.xml

@@ -1,5 +1,5 @@
 meta {
-  name: 01 - Create RDMP with PDF
+  name: Create RDMP with PDF
   type: http
   seq: 1
 }
@@ -71,10 +71,5 @@ tests {
       var jsonData = res.getBody();
       expect(jsonData).to.have.property('oid');
       bru.setEnvVar("dmpOid",jsonData.oid);
-
-      var randomNumber = Math.floor(Math.random() * (1000 - 0 + 1) + 0)
-      bru.setEnvVar("randomNumber",randomNumber);
-      bru.setEnvVar("researcherUsername", "researcheruser" + randomNumber);
-      bru.setEnvVar("researcherEmail", "researcheruser" + randomNumber + "@email.edu.au");
   });
 }

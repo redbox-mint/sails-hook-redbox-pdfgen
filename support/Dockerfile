@@ -24,7 +24,7 @@ RUN wget --quiet --show-progress -O /usr/local/bin/minio-client https://dl.min.i
 RUN mkdir -p /opt/browsers \
     && chown node:node /opt/browsers
 
-COPY --chown=node:node . /opt/sails-hook-redbox-pdfgen
+COPY --chown=node:node ../ /opt/sails-hook-redbox-pdfgen
 
 USER node
 

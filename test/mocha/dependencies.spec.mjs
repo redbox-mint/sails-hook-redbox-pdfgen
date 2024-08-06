@@ -5,7 +5,7 @@ import path from "path";
 import puppeteer from "puppeteer";
 import { expect } from 'chai';
 
-const host = 'localhost';
+const host = 'support-rbportal-1';
 const port = 1500;
 const tmpDir = path.join(os.tmpdir(), 'pdfgen-mocha');
 
@@ -77,6 +77,8 @@ describe("Sails hook redbox pdfgen", function () {
     await page.screenshot({path: 'test/screenshots/06-after-login.png'});
     const navItems = await page.$$('#navbarSupportedContent > ul > li');
     expect(navItems.length).to.equal(7);
+
+    // TODO: this doesn't work yet, but it could be implemented
 
     // await page.waitForSelector('#adminLogin div.alert-danger', {hidden: true});
     // await page.waitForSelector('#adminLoginLink', {visible: true});

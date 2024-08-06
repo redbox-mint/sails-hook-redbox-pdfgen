@@ -48,3 +48,6 @@ sudo mkdir -p "${JUNIT_DIR}/backend-mocha"
 sudo mkdir -p "${JUNIT_DIR}/backend-bruno"
 sudo chown -R 1000:1000 "${JUNIT_DIR}"
 echo "Set up ${JUNIT_DIR}"
+
+# Compile the typescript.
+npm run compile:tsc

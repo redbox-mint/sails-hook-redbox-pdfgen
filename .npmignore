@@ -40,10 +40,6 @@ e2e/*.map
 .DS_Store
 Thumbs.db
 
-angular
-test/angular
-sailsWorkingDir
-
 # exclude dev and test resources from the built package
 .circleci/
 support/
@@ -51,7 +47,8 @@ test/
 typescript/
 .dockerignore
 .editorconfig
+.gitignore
+.npmignore
 .nvmrc
-Dockerfile
 runForDev.sh
 tsconfig.json

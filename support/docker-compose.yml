@@ -16,7 +16,7 @@ services:
       MINIO_ROOT_USER: 'minioadmin'
       MINIO_ROOT_PASSWORD: 'minioadmin'
     volumes:
-      - '../.tmp/minio-data:/data'
+      - '.tmp/minio-data:/data'
     healthcheck:
       test: [ 'CMD-SHELL', 'curl http://localhost:9000' ]
       interval: '5s'
@@ -30,8 +30,8 @@ services:
 
   rbportal:
     build:
-      context: '../../'
-      dockerfile: 'Dockerfile'
+      context: '../'
+      dockerfile: './support/Dockerfile'
     expose:
       - '1500'
     ports:
@@ -50,9 +50,9 @@ services:
       - 'HOOK_S3_BUCKET=attachments'
       - 'HOOK_S3_ENDPOINT=http://minio:9000'
     volumes:
-      - '../.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
-      - '../.tmp/attachments:/attachments'
-      - '../../:/opt/sails-hook-redbox-pdfgen'
+      - '.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
+      - '.tmp/attachments:/attachments'
+      - '../:/opt/sails-hook-redbox-pdfgen'
     healthcheck:
       test: [ 'CMD-SHELL', 'curl http://localhost:1500' ]
       interval: '5s'
@@ -83,7 +83,7 @@ services:
     ports:
       - '27017:27017'
     volumes:
-      - '../.tmp/mongo:/data/db'
+      - '.tmp/mongo:/data/db'
     healthcheck:
       test: [ 'CMD-SHELL', "echo 'db.runCommand(\"ping\").ok' | mongosh" ]
       interval: '5s'
@@ -104,7 +104,7 @@ services:
     environment:
       - 'SOLR_HOME=/var/solr/data'
     volumes:
-      - '../.tmp/solr:/var/solr/data'
+      - '.tmp/solr:/var/solr/data'
     healthcheck:
       test: [ 'CMD-SHELL', 'curl http://localhost:8983' ]
       interval: '5s'

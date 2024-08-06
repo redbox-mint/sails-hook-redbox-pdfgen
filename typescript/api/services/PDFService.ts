@@ -21,9 +21,9 @@ import { Observable } from 'rxjs/Rx';
 
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
-import fs = require('fs-extra');
-import moment = require('moment');
-const os = require('os');
+const moment = require('moment');
+const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('path');
 
 import { Services as service, Datastream } from '@researchdatabox/redbox-core-types';
@@ -87,7 +87,7 @@ export module Services {
         // Start the browser
         sails.log.verbose(`PDFService::Launching browser....`);
         // Ensure the user data dir is new each run so that the browser is completely clean
-        tmpUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfgen'));
+        tmpUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdfgen'));
         // Use the default executablePath with the 'chrome-headless-shell' headless mode
         // https://pptr.dev/guides/headless-modes/
         browser = await launch({headless: 'shell', args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
@@ -139,7 +139,7 @@ export module Services {
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
         const targetDir = sails.config.record.attachments.stageDir;
         sails.log.verbose(`PDFService::Checking target dir: ${targetDir}`);
-        await fs.ensureDir(targetDir);
+        await fs.mkdir(targetDir, {recursive: true});
         sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
         const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
 
@@ -182,7 +182,7 @@ export module Services {
             await browser.close();
           }
         } catch (e) {
-          sails.log.error(`PDFService:: Failed to close browser after error`);
+          sails.log.error(`PDFService::Failed to close browser after error`);
           sails.log.error(e);
         }
       } finally {
@@ -191,7 +191,7 @@ export module Services {
           browser.process().kill('SIGTERM');
         }
         if (tmpUserDataDir) {
-          fs.removeSync(tmpUserDataDir, {recursive: true});
+          await fs.rm(tmpUserDataDir, { recursive: true, force: true });
         }
       }
       return record;

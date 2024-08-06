@@ -8,17 +8,15 @@
     "hookName": "template"
   },
   "scripts": {
-    "build": "node_modules/typescript/bin/tsc",
+    "compile:tsc": "node_modules/typescript/bin/tsc",
     "dev:host": "./support/prepare-host.sh",
-    "dev:host:clean": "sudo rm -rf ./support/.tmp",
-    "dev:guest": "./support/prepare-guest.sh",
-    "dev:docker": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f support/development/docker-compose.yml up --remove-orphans",
-    "dev:docker:clean": "docker compose -f support/development/docker-compose.yml down",
-    "dev:run": "./runForDev.sh",
-    "test:mocha:docker": "docker compose -f ./support/test/docker-compose.mocha.yml up --abort-on-container-exit --exit-code-from mocha",
-    "test:mocha:docker:clean": "docker compose -f ./support/test/docker-compose.mocha.yml down",
-    "test:bruno:docker": "docker compose -f ./support/test/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
-    "test:bruno:docker:clean": "docker compose -f ./support/test/docker-compose.bruno.yml down",
+    "dev:host:clean": "sudo rm -rf ./support/.tmp && docker volume prune -af",
+    "dev:docker": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f support/docker-compose.yml up --remove-orphans",
+    "dev:docker:clean": "docker compose -f support/docker-compose.yml down",
+    "test:mocha:docker": "docker compose -f ./support/docker-compose.mocha.yml up --abort-on-container-exit --exit-code-from mocha",
+    "test:mocha:docker:clean": "docker compose -f ./support/docker-compose.mocha.yml down",
+    "test:bruno:docker": "docker compose -f ./support/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
+    "test:bruno:docker:clean": "docker compose -f ./support/docker-compose.bruno.yml down",
     "test:docker:clean": "npm run test:mocha:docker:clean; npm run test:bruno:docker:clean"
   },
   "repository": {

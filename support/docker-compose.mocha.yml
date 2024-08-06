@@ -1,18 +1,18 @@
 
 include:
-  - '../development/docker-compose.yml'
+  - 'docker-compose.yml'
 
 services:
   mocha:
     build:
-      context: '../../'
-      dockerfile: 'Dockerfile'
+      context: '../'
+      dockerfile: './support/Dockerfile'
     environment:
       - 'NODE_ENV=test'
     volumes:
-      - '../.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
-      - '../.tmp/attachments:/attachments'
-      - '../../:/opt/sails-hook-redbox-pdfgen'
+      - '.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
+      - '.tmp/attachments:/attachments'
+      - '../:/opt/sails-hook-redbox-pdfgen'
     networks:
       main:
         aliases:

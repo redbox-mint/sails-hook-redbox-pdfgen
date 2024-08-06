@@ -16,6 +16,15 @@ module.exports = function (sails) {
         sails.services['pdfservice'] = PDFService;
       }
 
+      if (!_.isUndefined(sails.config.auth.default.local.default.token) && !_.isEmpty(sails.config.auth.default.local.default.token)) {
+        const enabledTypes = ["rdmp",];
+        for (let enabledType of enabledTypes) {
+          sails.log.verbose(`PDFService::Adding token for recordtype ${enabledType}`)
+          sails.config.recordtype[enabledType].hooks.onCreate.post[0].options.triggerConfiguration.options.token = sails.config.auth.default.local.default.token;
+          sails.config.recordtype[enabledType].hooks.onUpdate.post[0].options.triggerConfiguration.options.token = sails.config.auth.default.local.default.token;
+        }
+      }
+
       sails.log.verbose(PDFService);
       return cb();
     },

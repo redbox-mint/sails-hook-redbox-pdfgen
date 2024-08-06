@@ -9,6 +9,12 @@ SUPPORT_DIR="${BASE_DIR}/support"
 BUILD_DIR="/tmp/build-sails-hook-redbox-pdfgen"
 BUILD_PREFIX="researchdatabox-sails-hook-redbox-pdfgen"
 
+# Copy the files to install this hook for testing.
+cp "${BASE_DIR}/test/resources/index.js" "${BASE_DIR}/index.js"
+mkdir -p "${BASE_DIR}/config"
+cp "${BASE_DIR}/test/resources/config/agendaQueue.js" "${BASE_DIR}/config/agendaQueue.js"
+cp "${BASE_DIR}/test/resources/config/rdmp-recordtype.js" "${BASE_DIR}/config/rdmp-recordtype.js"
+
 # create the minio local bucket.
 ATTACH_DIR="${SUPPORT_DIR}/.tmp/minio-data/.minio.sys/buckets/${HOOK_S3_BUCKET}"
 if [ ! -d "${ATTACH_DIR}" ]; then
@@ -34,11 +40,8 @@ else
   echo "Reusing existing credentials file ${CREDS_FILE}"
 fi
 
-# Compile this package
-cd "${BASE_DIR}"
-npm run build
-
 # Build this package
+cd "${BASE_DIR}"
 mkdir -p "${BUILD_DIR}"
 rm -rf ${BUILD_DIR}/${BUILD_PREFIX}*
 npm pack . --pack-destination=${BUILD_DIR}
