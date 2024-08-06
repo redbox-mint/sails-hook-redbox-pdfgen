@@ -37,6 +37,9 @@ jobs:
       - attach_workspace:
           at: /home/circleci/project
       - run:
+          name: Change project dir ownership to work in docker container
+          command: sudo chown -R 1000:1000 /home/circleci/project
+      - run:
           name: Prepare the host machine
           command: npm run dev:host
       - run:
