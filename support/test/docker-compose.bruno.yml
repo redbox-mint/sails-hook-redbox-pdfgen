@@ -16,8 +16,6 @@ services:
       main:
         aliases:
           - 'bruno'
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       rbportal:
         condition: 'service_healthy'

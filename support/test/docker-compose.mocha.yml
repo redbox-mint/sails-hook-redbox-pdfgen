@@ -17,8 +17,6 @@ services:
       main:
         aliases:
           - 'mocha'
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       rbportal:
         condition: 'service_healthy'

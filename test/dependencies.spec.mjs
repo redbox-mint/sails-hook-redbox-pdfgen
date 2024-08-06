@@ -5,7 +5,7 @@ import path from "path";
 import puppeteer from "puppeteer";
 import { expect } from 'chai';
 
-const host = 'host.docker.internal';
+const host = 'localhost';
 const port = 1500;
 const tmpDir = path.join(os.tmpdir(), 'pdfgen-mocha');
 
