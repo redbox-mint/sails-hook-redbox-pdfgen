@@ -61,4 +61,4 @@ sudo chown -R "${DOCKER_UID}:${DOCKER_GID}" "${JUNIT_DIR}"
 setupDone "${JUNIT_DIR}"
 
 # Compile the typescript.
-sudo npm run compile:tsc
+npm run compile:tsc
