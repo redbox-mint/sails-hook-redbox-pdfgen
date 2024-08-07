@@ -83,18 +83,45 @@ jobs:
             - ~/.npm
 
 workflows:
-  build_and_publish:
+  branch-build-test:
     jobs:
-      - build
+      - build:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
       - test:
           requires:
             - build
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+
+  tag-build-test-publish:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
       - publish:
           requires:
             - build
             - test
           filters:
-            tags:
-              only: /^v.*/
             branches:
               ignore: /.*/
+            tags:
+              only: /^v.*/
