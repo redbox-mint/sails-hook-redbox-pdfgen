@@ -27,5 +27,5 @@ services:
       bru run
       --env test
       --format junit
-      --output /opt/sails-hook-redbox-pdfgen/support/.tmp/junit/backend-bruno/backend-bruno.xml
+      --output /opt/sails-hook-redbox-pdfgen/support/tmp-data/junit/backend-bruno/backend-bruno.xml
       --bail"

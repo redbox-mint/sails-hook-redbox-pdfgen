@@ -49,6 +49,8 @@ jobs:
           command: |
             npm run test:bruno:docker
             npm run test:bruno:docker:clean
+      - store_test_results:
+          path: support/tmp-data/junit
 
 # TODO: get the mocha / puppeteer tests working
 #npm run test:mocha:docker
