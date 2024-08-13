@@ -5,7 +5,7 @@
   "main": "index.js",
   "sails": {
     "isHook": true,
-    "hookName": "template"
+    "hookName": "sails-hook-redbox-pdfgen"
   },
   "scripts": {
     "compile:tsc": "./node_modules/typescript/bin/tsc",
