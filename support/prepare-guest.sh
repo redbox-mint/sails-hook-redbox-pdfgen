@@ -16,7 +16,7 @@ cp "${BASE_DIR}/test/resources/config/agendaQueue.js" "${BASE_DIR}/config/agenda
 cp "${BASE_DIR}/test/resources/config/rdmp-recordtype.js" "${BASE_DIR}/config/rdmp-recordtype.js"
 
 # create the minio local bucket.
-ATTACH_DIR="${SUPPORT_DIR}/.tmp/minio-data/.minio.sys/buckets/${HOOK_S3_BUCKET}"
+ATTACH_DIR="${SUPPORT_DIR}/tmp-data/minio-data/.minio.sys/buckets/${HOOK_S3_BUCKET}"
 if [ ! -d "${ATTACH_DIR}" ]; then
   # Configure minio
   minio-client alias set local "${HOOK_S3_ENDPOINT}" minioadmin minioadmin

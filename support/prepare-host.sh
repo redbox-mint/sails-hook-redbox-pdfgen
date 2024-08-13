@@ -18,7 +18,7 @@ echo "Preparing host using base dir $(pwd)"
 SUPPORT_DIR="$(pwd)/support"
 
 # Create directories.
-TMP_DIR="${SUPPORT_DIR}/.tmp"
+TMP_DIR="${SUPPORT_DIR}/tmp-data"
 sudo mkdir -p "${TMP_DIR}"
 sudo chown "${DOCKER_UID}:${DOCKER_GID}" "${TMP_DIR}"
 setupDone "${TMP_DIR}"

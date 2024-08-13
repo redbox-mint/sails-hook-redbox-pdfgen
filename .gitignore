@@ -46,4 +46,4 @@ test/angular
 api/
 
 # local dev and test output
-support/.tmp
+tmp-data/

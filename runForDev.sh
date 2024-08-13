@@ -5,7 +5,7 @@ set -euo pipefail
 # This script runs a development redbox instance with this hook installed.
 
 # Install packages for this hook.
-npm install
+PUPPETEER_SKIP_DOWNLOAD=true npm install
 
 # Prepare the host machine.
 npm run dev:host
