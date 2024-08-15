@@ -101,16 +101,16 @@ export module Services {
         // using string flag so we can inject via env var
         if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
           page.on('console', msg => {
-            sails.log.verbose(`PDFService::Chrome Console:${msg.text}`)
+            sails.log.verbose(`PDFService::Chrome Console: Type: ${msg.type()}, Text: ${msg.text()}, Args: ${msg.args()}`)
           });
           page.on('pageerror', error => {
             sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
           });
           page.on('response', response => {
-            sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${ response.url}`);
+            sails.log.verbose(`PDFService::Chrome Response: ${response.status()}, URL:${ response.url()}`);
           });
           page.on('requestfailed', request => {
-            sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
+            sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url()}`);
           });
         }
 
