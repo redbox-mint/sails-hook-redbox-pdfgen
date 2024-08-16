@@ -10,12 +10,6 @@ HOOK_NAME="sails-hook-redbox-pdfgen"
 BASE_DIR="/opt/${HOOK_NAME}"
 SUPPORT_DIR="${BASE_DIR}/support"
 
-# Copy the files to install this hook for testing.
-cp "${BASE_DIR}/test/resources/index.js" "${BASE_DIR}/index.js"
-mkdir -p "${BASE_DIR}/config"
-cp "${BASE_DIR}/test/resources/config/agendaQueue.js" "${BASE_DIR}/config/agendaQueue.js"
-cp "${BASE_DIR}/test/resources/config/rdmp-recordtype.js" "${BASE_DIR}/config/rdmp-recordtype.js"
-
 # create the minio local bucket.
 ATTACH_DIR="${SUPPORT_DIR}/tmp-data/minio-data/.minio.sys/buckets/${HOOK_S3_BUCKET}"
 if [ ! -d "${ATTACH_DIR}" ]; then

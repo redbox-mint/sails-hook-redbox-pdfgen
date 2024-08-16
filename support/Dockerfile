@@ -31,12 +31,16 @@ ENV BUILD_PREFIX="researchdatabox-${HOOK_NAME}"
 ENV INSTALL_DIR="/opt/redbox-portal/node_modules/${HOOK_NAME}"
 ENV PUPPETEER_CACHE_DIR="/opt/browsers"
 
-# Package this hook and install it
+# Copy the files to install this hook for testing.
+# Package this hook and install it.
 COPY --chown=node:node . "${HOOK_PATH}"
-RUN cd "${HOOK_PATH}" \
+RUN cp "${HOOK_PATH}/test/resources/index.js" "${HOOK_PATH}/index.js" \
+    && mkdir -p "${HOOK_PATH}/config" \
+    && cp "${HOOK_PATH}/test/resources/config/agendaQueue.js" "${HOOK_PATH}/config/agendaQueue.js" \
+    && cp "${HOOK_PATH}/test/resources/config/rdmp-recordtype.js" "${HOOK_PATH}/config/rdmp-recordtype.js" \
+    && cd "${HOOK_PATH}" \ \
     && mkdir -p "${BUILD_DIR}" \
     && rm -rf ${BUILD_DIR}/* \
     && npm pack . --pack-destination=${BUILD_DIR} \
     && cd /opt/redbox-portal  \
     && npm install --omit=dev ${BUILD_DIR}/${BUILD_PREFIX}*
-

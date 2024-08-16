@@ -17,7 +17,7 @@ headers {
 }
 
 script:pre-request {
-  await new Promise((resolve) => setTimeout(() => resolve(), 15000));
+  await new Promise((resolve) => setTimeout(() => resolve(), 20000));
 }
 
 tests {
@@ -34,6 +34,8 @@ tests {
 
       // should be one attachment, with pdf ext
       expect(_.size(jsonData)).to.equal(1);
+
+      // stored in Gridfs
       expect(jsonData[0].redboxOid).to.equal(bru.getEnvVar("dmpOid"));
       bru.setEnvVar("recordStreamId",jsonData[0].fileId);
 
