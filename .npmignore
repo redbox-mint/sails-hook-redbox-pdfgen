@@ -42,6 +42,7 @@ Thumbs.db
 
 # exclude dev and test resources from the built package
 .circleci/
+.github/
 support/
 test/
 typescript/
@@ -52,3 +53,4 @@ typescript/
 .nvmrc
 runForDev.sh
 tsconfig.json
+*.iml

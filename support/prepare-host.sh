@@ -10,14 +10,17 @@ SOLR_GID=8983
 
 function setupDone() {
   local -r name="$1"
-  echo "Finished setting up ${name}"
+  echo "Set up ${name}"
 }
 
 # This script does the preparation on the host needed to run local development and tests.
 echo "Preparing host using base dir $(pwd)"
 SUPPORT_DIR="$(pwd)/support"
 
-# Create directories.
+# Set up directories.
+sudo chmod 'u+rw,g+rw,o+rw' ${SUPPORT_DIR}/*
+setupDone "${SUPPORT_DIR}"
+
 TMP_DIR="${SUPPORT_DIR}/tmp-data"
 sudo mkdir -p "${TMP_DIR}"
 sudo chown "${DOCKER_UID}:${DOCKER_GID}" "${TMP_DIR}"
@@ -59,6 +62,11 @@ sudo mkdir -p "${JUNIT_DIR}/backend-mocha"
 sudo mkdir -p "${JUNIT_DIR}/backend-bruno"
 sudo chown -R "${DOCKER_UID}:${DOCKER_GID}" "${JUNIT_DIR}"
 setupDone "${JUNIT_DIR}"
+
+ASSETS_DIR="${TMP_DIR}/locales"
+sudo mkdir -p "${ASSETS_DIR}"
+sudo chmod 'u+rw,g+rw,o+rw' "${ASSETS_DIR}"
+setupDone "${ASSETS_DIR}"
 
 # Compile the typescript.
 npm run compile:tsc

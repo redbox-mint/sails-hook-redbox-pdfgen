@@ -4,10 +4,10 @@ set -euo pipefail
 
 # This script does the preparation on the guest needed to run local development and tests.
 
-BASE_DIR="/opt/sails-hook-redbox-pdfgen"
+HOOK_NAME="sails-hook-redbox-pdfgen"
+
+BASE_DIR="/opt/${HOOK_NAME}"
 SUPPORT_DIR="${BASE_DIR}/support"
-BUILD_DIR="/tmp/build-sails-hook-redbox-pdfgen"
-BUILD_PREFIX="researchdatabox-sails-hook-redbox-pdfgen"
 
 # Copy the files to install this hook for testing.
 cp "${BASE_DIR}/test/resources/index.js" "${BASE_DIR}/index.js"
@@ -18,9 +18,9 @@ cp "${BASE_DIR}/test/resources/config/rdmp-recordtype.js" "${BASE_DIR}/config/rd
 # create the minio local bucket.
 ATTACH_DIR="${SUPPORT_DIR}/tmp-data/minio-data/.minio.sys/buckets/${HOOK_S3_BUCKET}"
 if [ ! -d "${ATTACH_DIR}" ]; then
-  # Configure minio
-  minio-client alias set local "${HOOK_S3_ENDPOINT}" minioadmin minioadmin
-  minio-client mb "local/$HOOK_S3_BUCKET"
+  echo "Configure minio..."
+  mc alias set local "${HOOK_S3_ENDPOINT}" minioadmin minioadmin
+  mc mb "local/$HOOK_S3_BUCKET"
 else
   echo "Attachments Bucket ${HOOK_S3_BUCKET} exists, skipping creation."
 fi
@@ -39,13 +39,3 @@ EOF
 else
   echo "Reusing existing credentials file ${CREDS_FILE}"
 fi
-
-# Build this package
-cd "${BASE_DIR}"
-mkdir -p "${BUILD_DIR}"
-rm -rf ${BUILD_DIR}/${BUILD_PREFIX}*
-npm pack . --pack-destination=${BUILD_DIR}
-
-# install this package
-cd /opt/redbox-portal
-npm install ${BUILD_DIR}/${BUILD_PREFIX}*

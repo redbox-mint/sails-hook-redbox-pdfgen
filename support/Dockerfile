@@ -1,11 +1,11 @@
-FROM qcifengineering/redbox-portal:develop
+FROM qcifengineering/redbox-portal:develop AS build
 
 # This Dockerfile is for dev and testing only.
 
 USER root
 
 # Configure default locale for chrome-headless-shell.
-ENV LANG=en_US.UTF-8
+ENV LANG="en_US.UTF-8"
 
 # Install the dependencies required for Chrome for Testing and chrome-headless-shell
 # that puppeteer installs. See https://pptr.dev/guides/docker
@@ -17,15 +17,26 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends google-chrome-stable fonts-freefont-ttf libxss1 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /opt/browsers \
-    && chown node:node /opt/browsers \
-    && wget --quiet --show-progress -O /usr/local/bin/minio-client https://dl.min.io/client/mc/release/linux-amd64/mc \
-    && chmod +x /usr/local/bin/minio-client
+    && chown node:node /opt/browsers
 
-COPY --chown=node:node ../ /opt/sails-hook-redbox-pdfgen
+COPY --from=minio/mc:latest /bin/mc /bin/mc
 
 USER node
 
-# install chrome and chrome-headless-shell
-ENV PUPPETEER_CACHE_DIR=/opt/browsers
-RUN cd /opt/sails-hook-redbox-pdfgen \
-    && npm install
+ENV HOOK_NAME="sails-hook-redbox-pdfgen"
+
+ENV HOOK_PATH="/opt/${HOOK_NAME}"
+ENV BUILD_DIR="/tmp/build-${HOOK_NAME}"
+ENV BUILD_PREFIX="researchdatabox-${HOOK_NAME}"
+ENV INSTALL_DIR="/opt/redbox-portal/node_modules/${HOOK_NAME}"
+ENV PUPPETEER_CACHE_DIR="/opt/browsers"
+
+# Package this hook and install it
+COPY --chown=node:node . "${HOOK_PATH}"
+RUN cd "${HOOK_PATH}" \
+    && mkdir -p "${BUILD_DIR}" \
+    && rm -rf ${BUILD_DIR}/* \
+    && npm pack . --pack-destination=${BUILD_DIR} \
+    && cd /opt/redbox-portal  \
+    && npm install --omit=dev ${BUILD_DIR}/${BUILD_PREFIX}*
+

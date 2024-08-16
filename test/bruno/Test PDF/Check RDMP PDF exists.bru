@@ -30,6 +30,8 @@ tests {
   test("Has attachments", function () {
       var jsonData = res.body;
 
+      console.log(jsonData);
+
       // should be one attachment, with pdf ext
       expect(_.size(jsonData)).to.equal(1);
       expect(jsonData[0].redboxOid).to.equal(bru.getEnvVar("dmpOid"));

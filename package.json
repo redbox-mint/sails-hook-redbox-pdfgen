@@ -32,22 +32,15 @@
   "author": "Andrew Brazzatti",
   "license": "GPL-3.0",
   "devDependencies": {
-    "@types/node": "^20.14.13",
-    "mocha": "^10.7.0",
-    "chai": "^5.1.1",
-    "sails": "^1.5.10",
-    "stream": "^0.0.3",
-    "supertest": "^6.3.4"
-  },
-  "dependencies": {
-    "@researchdatabox/redbox-core-types": "^1.4.4",
-    "fs": "^0.0.1-security",
-    "lodash": "^4.17.21",
-    "moment": "^2.30.1",
-    "puppeteer": "^22.15.0",
+    "@researchdatabox/redbox-core-types": "1.4.5",
+    "@types/node": "22.2.0",
     "rxjs": "6.6.2",
     "rxjs-compat": "6.6.7",
-    "typescript": "^5.4.5"
+    "sails": "1.5.11",
+    "typescript": "5.4"
+  },
+  "dependencies": {
+    "puppeteer": "22.15.0"
   },
   "publishConfig": {
     "access": "public"

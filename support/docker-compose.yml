@@ -21,7 +21,7 @@ services:
       test: [ 'CMD-SHELL', 'curl http://localhost:9000' ]
       interval: '5s'
       timeout: '5s'
-      retries: '10'
+      retries: 10
       start_period: '20s'
     networks:
       main:
@@ -49,15 +49,20 @@ services:
       - 'HOOK_S3_REGION=ap-southeast-2'
       - 'HOOK_S3_BUCKET=attachments'
       - 'HOOK_S3_ENDPOINT=http://minio:9000'
+      - 'sails_pdfgen__enableChromeLogging=true'
     volumes:
+      - '../:/opt/sails-hook-redbox-pdfgen'
       - './tmp-data/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
       - './tmp-data/attachments:/attachments'
-      - '../:/opt/sails-hook-redbox-pdfgen'
+
+      # Uncomment this to get the language file for local dev.
+      # - './tmp-data/locales:/opt/redbox-portal/assets/locales'
+
     healthcheck:
       test: [ 'CMD-SHELL', 'curl http://localhost:1500' ]
       interval: '5s'
       timeout: '5s'
-      retries: '10'
+      retries: 10
       start_period: '30s'
     networks:
       main:
@@ -70,6 +75,9 @@ services:
         condition: 'service_healthy'
       solr:
         condition: 'service_healthy'
+# Uncomment this to get the language file for local dev.
+#      csv-to-i18next:
+#        condition: 'service_started'
     entrypoint: >-
       /bin/bash -c "
       /opt/sails-hook-redbox-pdfgen/support/prepare-guest.sh &&
@@ -88,7 +96,7 @@ services:
       test: [ 'CMD-SHELL', "echo 'db.runCommand(\"ping\").ok' | mongosh" ]
       interval: '5s'
       timeout: '5s'
-      retries: '10'
+      retries: 10
       start_period: '30s'
     networks:
       main:
@@ -109,7 +117,7 @@ services:
       test: [ 'CMD-SHELL', 'curl http://localhost:8983' ]
       interval: '5s'
       timeout: '5s'
-      retries: '10'
+      retries: 10
     networks:
       main:
         aliases:
@@ -118,3 +126,27 @@ services:
       - docker-entrypoint.sh
       - solr-precreate
       - redbox
+
+# Uncomment this to get the language file for local dev.
+#  csv-to-i18next:
+#    image: 'nexus-prod.redboxresearchdata.com.au:21443/csv-to-i18next:master'
+#    working_dir: "/conversiondir"
+#    volumes:
+#      # the translated data will be written into the hook asset locale directory
+#      - "./tmp-data/locales:/conversiondir"
+#      # Get "google-service-account.json" from 1Password in entry "Google Sheet Language File Viewer"
+#      - '/home/vagrant/.config/google-service-account.json:/opt/csv-to-i18next/google-service-account.json'
+#      - '../:/opt/redbox-hook-deakin'
+#    networks:
+#      main:
+#        aliases:
+#          - csv-to-i18next
+#    # 'GOOGLE_SPREADSHEET_ID' identifier string is the id of the spreadsheet - get this from the Google Drive sheet url
+#    entrypoint: >-
+#      /bin/bash -c "
+#      node /opt/csv-to-i18next/index.mjs
+#      googlesheet
+#      ''
+#      translation.json
+#      en &&
+#      /opt/redbox-hook-wsu/support/waiting.sh"
