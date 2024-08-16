@@ -3,7 +3,7 @@ include:
 
 services:
   bruno:
-    image: 'qcifengineering/redbox-portal:develop'
+    image: 'qcifengineering/redbox-portal:v3.7'
     environment:
       - 'NODE_ENV=test'
     volumes:

@@ -1,4 +1,4 @@
-FROM qcifengineering/redbox-portal:develop AS build
+FROM qcifengineering/redbox-portal:v3.7 AS build
 
 # This Dockerfile is for dev and testing only.
 

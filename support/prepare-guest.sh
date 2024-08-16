@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+set -o xtrace
 
 # This script does the preparation on the guest needed to run local development and tests.
 
