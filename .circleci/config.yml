@@ -1,10 +1,13 @@
 version: 2.1
 
 jobs:
-  build:
-    docker:
-      # docker image version must match version in .nvmrc
-      - image: cimg/node:20.15.0
+  build-test:
+    machine:
+      image: ubuntu-2004:current
+      docker_layer_caching: true
+    resource_class: large
+    environment:
+      BUILDKIT_PROGRESS: 'plain'
     steps:
       - checkout
       - restore_cache:
@@ -15,38 +18,27 @@ jobs:
       - run:
           name: Install packages
           command: npm ci
-      - run:
-          name: Compile the typescript
-          command: npm run compile:tsc
       - save_cache:
           key: v1-node-{{ .Branch }}-{{ checksum "package-lock.json" }}
           paths:
             - ~/.npm
-      - persist_to_workspace:
-          root: .
-          paths:
-            - .
-
-  test:
-    machine:
-      image: ubuntu-2004:current
-      docker_layer_caching: true
-    resource_class: large
-    environment:
-      BUILDKIT_PROGRESS: 'plain'
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
       - run:
-          name: Prepare the host machine
-          command: npm run dev:host
+          name: Compile the typescript
+          command: npm run compile:tsc
+      - run:
+          name: Prepare tests
+          command: |
+            npm run dev:host:clean
+            npm run test:docker:clean
+            npm run docker:rm
+            npm run dev:host
       - run:
           # TODO: chmod 777 isn't great, but the permission errors were getting too complicated
           name: Change project dir ownership to work in docker container
           command: |
             sudo chmod -R 'u=rwx,g=rwx,o=rwx' /home/circleci/project
       - run:
-          name: Run Bruno and Mocha tests
+          name: Run tests
           command: |
             npm run test:bruno:docker
             npm run test:bruno:docker:clean
@@ -71,6 +63,10 @@ jobs:
       - run:
           name: Install packages
           command: npm ci
+      - save_cache:
+          key: v1-node-{{ .Branch }}-{{ checksum "package-lock.json" }}
+          paths:
+            - ~/.npm
       - run:
           name: Compile the typescript
           command: npm run compile:tsc
@@ -80,23 +76,11 @@ jobs:
       - run:
           name: Publish package
           command: npm publish --access public
-      - save_cache:
-          key: v1-node-{{ .Branch }}-{{ checksum "package-lock.json" }}
-          paths:
-            - ~/.npm
 
 workflows:
   branch-build-test:
     jobs:
-      - build:
-          filters:
-            branches:
-              only: /.*/
-            tags:
-              ignore: /.*/
-      - test:
-          requires:
-            - build
+      - build-test:
           filters:
             branches:
               only: /.*/
@@ -105,15 +89,7 @@ workflows:
 
   tag-build-test-publish:
     jobs:
-      - build:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v.*/
-      - test:
-          requires:
-            - build
+      - build-test:
           filters:
             branches:
               ignore: /.*/
@@ -121,8 +97,7 @@ workflows:
               only: /^v.*/
       - publish:
           requires:
-            - build
-            - test
+            - build-test
           filters:
             branches:
               ignore: /.*/

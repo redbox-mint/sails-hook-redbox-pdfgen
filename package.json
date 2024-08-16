@@ -18,7 +18,7 @@
     "test:bruno:docker": "docker compose -f ./support/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
     "test:bruno:docker:clean": "docker compose -f ./support/docker-compose.bruno.yml down",
     "test:docker:clean": "npm run test:mocha:docker:clean; npm run test:bruno:docker:clean",
-    "docker:rm": "docker image rm -f support-rbportal support-mocha support-bruno"
+    "docker:rm": "docker image rm -f support-rbportal"
   },
   "repository": {
     "type": "git",

@@ -3,14 +3,10 @@ include:
 
 services:
   bruno:
-    build:
-      context: '../'
-      dockerfile: './support/Dockerfile'
+    image: 'qcifengineering/redbox-portal:develop'
     environment:
       - 'NODE_ENV=test'
     volumes:
-      - './tmp-data/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp'
-      - './tmp-data/attachments:/attachments'
       - '../:/opt/sails-hook-redbox-pdfgen'
     networks:
       main:
