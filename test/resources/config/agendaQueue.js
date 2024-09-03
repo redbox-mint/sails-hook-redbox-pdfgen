@@ -5,8 +5,8 @@ module.exports.agendaQueue = {
             fnName: 'solrsearchservice.solrAddOrUpdate',
             options: {
                 lockLifetime: 3 * 1000, // 3 seconds max runtime
-                lockLimit: 10,
-                concurrency: 10
+                lockLimit: 1,
+                concurrency: 1
             }
         },
         {
@@ -14,8 +14,8 @@ module.exports.agendaQueue = {
             fnName: 'solrsearchservice.solrDelete',
             options: {
                 lockLifetime: 3 * 1000, // 3 seconds max runtime
-                lockLimit: 10,
-                concurrency: 10
+                lockLimit: 1,
+                concurrency: 1
             }
         },
         {
@@ -23,8 +23,8 @@ module.exports.agendaQueue = {
             fnName: 'recordsservice.storeRecordAudit',
             options: {
                 lockLifetime: 30 * 1000,
-                lockLimit: 10,
-                concurrency: 10
+                lockLimit: 1,
+                concurrency: 1
             }
         },
         {
