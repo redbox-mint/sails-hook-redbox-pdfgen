@@ -16,8 +16,20 @@ module.exports = function (sails) {
         sails.services['pdfservice'] = PDFService;
       }
 
-      sails.log.verbose(PDFService);
-      return cb();
+      sails.after('hook:moduleloader:loaded', async () => {
+        try {
+          const { PDFGenConfig } = require('./api/configmodels/PDFGenConfig');
+          sails.log.error('sails.services')
+          sails.log.error(sails.services.appconfigservice)
+          sails.services.appconfigservice.registerConfigModel(
+            {key: 'pdfgen', model: PDFService, modelName: 'PDFGenConfig', title: 'PDF Generation Config', class: PDFGenConfig, tsGlob: __dirname + '/typescript/api/configmodels/*.ts'}
+          );
+          return cb(); 
+        } catch (e) {
+          sails.log.error('sails-hook-redbox-pdfgen init failed:', e);
+          return cb(e);
+        }
+      });
     },
     //If each route middleware do not exist sails.lift will fail during hook.load()
     routes: {

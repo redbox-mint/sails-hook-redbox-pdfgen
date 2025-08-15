@@ -34,7 +34,7 @@ declare var _this;
 declare var _;
 declare var User;
 declare var RecordsService;
-declare var UsersService;
+declare var BrandingService;
 
 export module Services {
   /**
@@ -53,6 +53,8 @@ export module Services {
 
     private async generatePDF(oid: string, record: any, options: any) {
       sails.log.verbose("PDFService::Creating PDF for: " + oid);
+
+      const brand = this.getBranding(record);
 
       // Added to support storage backend hooks, degrading gracefully
       let datastreamService = RecordsService;
@@ -75,8 +77,8 @@ export module Services {
       }
 
       // Check that the token is provided
-      const token = options['token']? options['token'] : undefined;
-      if (token == undefined) {
+      let token = this.getOption(brand, options, 'token');
+      if (!token) {
         sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
         return;
       }
@@ -99,7 +101,8 @@ export module Services {
           Authorization: 'Bearer '+ token
         });
         // using string flag so we can inject via env var
-        if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
+        
+        if (_.get(sails.config.brandingAware(brand.name).pdfgen, 'enableChromeLogging') == 'true') {
           page.on('console', msg => {
             sails.log.verbose(`PDFService::Chrome Console:${msg.text}`)
           });
@@ -114,10 +117,8 @@ export module Services {
           });
         }
 
-        // Determine the url to visit
-        //TODO: get branding name from record
-        let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
-        let pdfgenAppUrlOverride = _.get(sails.config, 'pdfgen.appUrlOverride');
+        let sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`)
+        let pdfgenAppUrlOverride = _.get(sails.config.brandingAware(brand.name).pdfgen, 'appUrlOverride');
         sails.log.verbose('PDFService::sourceUrlBase '+sourceUrlBase);
         sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride '+pdfgenAppUrlOverride);
         let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
@@ -129,13 +130,13 @@ export module Services {
         await page.goto(currentURL, { waitUntil: 'networkidle2',});
 
         // Wait for the page selector to be available
-        await page.waitForSelector(options['waitForSelector'], { timeout: 60000 });
+        await page.waitForSelector(this.getOption(brand, options, 'waitForSelector'), { timeout: 60000 });
         sails.log.verbose(`PDFService::loaded page: ${currentURL}, waiting further...`);
         await this.delay(1500);
 
         // Build the path to the pdf file
         const date = moment().format('x');
-        const pdfPrefix = options['pdfPrefix']
+        const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
         const targetDir = sails.config.record.attachments.stageDir;
         sails.log.verbose(`PDFService::Checking target dir: ${targetDir}`);
@@ -149,10 +150,12 @@ export module Services {
           format: 'A4',
           printBackground: true
         };
-        if (options['PDFOptions']) {
+        ;
+        if (this.getOption(brand, options, 'PDFOptions')) {
+          let pdfOptions = this.getOption(brand, options, 'PDFOptions')
           // We don't want the file path to be overriden
-          delete options['PDFOptions']['path'];
-          defaultPDFOptions = _.merge(defaultPDFOptions, options['PDFOptions']);
+          delete pdfOptions['path'];
+          defaultPDFOptions = _.merge(defaultPDFOptions, pdfOptions);
         }
         await page.pdf(defaultPDFOptions);
         sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
@@ -196,6 +199,22 @@ export module Services {
       }
       return record;
     }
+
+    private getBranding(record) {
+      return BrandingService.getBrandById(record.metaMetadata.brandId)
+    }
+
+    private getOption(branding,option,key, defaultValue = undefined) {
+      let value = sails.config.brandingAware(branding.name).pdfgen[key];
+      if(option[key] !== undefined) {
+        value = option[key];
+      }
+      if(value === undefined) {
+        return defaultValue;
+      }
+      return value;
+    }
+
 
     public createPDF(oid, record, options, user) {
       return Observable.fromPromise(this.generatePDF(oid, record, options));

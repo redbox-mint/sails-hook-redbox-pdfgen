@@ -45,6 +45,7 @@ Thumbs.db
 support/
 test/
 typescript/
+!typescript/api/configmodels/PDFGenConfig.ts
 .dockerignore
 .editorconfig
 .gitignore

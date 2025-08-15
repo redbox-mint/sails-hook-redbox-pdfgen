@@ -1,4 +1,4 @@
-FROM qcifengineering/redbox-portal:develop
+FROM qcifengineering/redbox-portal:feature-hookable-app-config
 
 # This Dockerfile is for dev and testing only.
 
