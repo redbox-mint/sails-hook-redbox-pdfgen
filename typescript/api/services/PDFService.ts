@@ -17,11 +17,11 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import { Observable } from 'rxjs/Rx';
+import { from } from 'rxjs';
 
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
-const moment = require('moment');
+import { DateTime } from 'luxon';
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('path');
@@ -92,16 +92,16 @@ export module Services {
         tmpUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdfgen'));
         // Use the default executablePath with the 'chrome-headless-shell' headless mode
         // https://pptr.dev/guides/headless-modes/
-        browser = await launch({headless: 'shell', args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
+        browser = await launch({ headless: 'shell', args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
 
         // Create a browser page
         sails.log.verbose(`PDFService::Creating new page....`)
         const page = await browser.newPage();
         page.setExtraHTTPHeaders({
-          Authorization: 'Bearer '+ token
+          Authorization: 'Bearer ' + token
         });
         // using string flag so we can inject via env var
-        
+
         if (_.get(sails.config.brandingAware(brand.name).pdfgen, 'enableChromeLogging') == 'true') {
           page.on('console', msg => {
             sails.log.verbose(`PDFService::Chrome Console:${msg.text}`)
@@ -110,7 +110,7 @@ export module Services {
             sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
           });
           page.on('response', response => {
-            sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${ response.url}`);
+            sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${response.url}`);
           });
           page.on('requestfailed', request => {
             sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
@@ -119,15 +119,15 @@ export module Services {
 
         let sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`)
         let pdfgenAppUrlOverride = _.get(sails.config.brandingAware(brand.name).pdfgen, 'appUrlOverride');
-        sails.log.verbose('PDFService::sourceUrlBase '+sourceUrlBase);
-        sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride '+pdfgenAppUrlOverride);
+        sails.log.verbose('PDFService::sourceUrlBase ' + sourceUrlBase);
+        sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride ' + pdfgenAppUrlOverride);
         let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
         let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
         this.processMap[currentURL] = true;
         sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
 
         // Go to the page and wait for the page to load
-        await page.goto(currentURL, { waitUntil: 'networkidle2',});
+        await page.goto(currentURL, { waitUntil: 'networkidle2', });
 
         // Wait for the page selector to be available
         await page.waitForSelector(this.getOption(brand, options, 'waitForSelector'), { timeout: 60000 });
@@ -135,17 +135,17 @@ export module Services {
         await this.delay(1500);
 
         // Build the path to the pdf file
-        const date = moment().format('x');
+        const date = DateTime.now().toMillis();
         const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
         const targetDir = sails.config.record.attachments.stageDir;
         sails.log.verbose(`PDFService::Checking target dir: ${targetDir}`);
-        await fs.mkdir(targetDir, {recursive: true});
+        await fs.mkdir(targetDir, { recursive: true });
         sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
         const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
 
         // Save the pdf file
-        let defaultPDFOptions:any = {
+        let defaultPDFOptions: any = {
           path: fpath,
           format: 'A4',
           printBackground: true
@@ -170,7 +170,7 @@ export module Services {
         if (compatMode) {
           savedPdfResponse = await datastreamService.addDatastream(oid, fileId);
         } else {
-          const datastream = new Datastream({fileId: fileId, name: fileId});
+          const datastream = new Datastream({ fileId: fileId, name: fileId });
           savedPdfResponse = await datastreamService.addDatastream(oid, datastream);
         }
         sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
@@ -180,7 +180,7 @@ export module Services {
         sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
         sails.log.error(e);
         sails.log.error(JSON.stringify(e));
-        try{
+        try {
           if (browser) {
             await browser.close();
           }
@@ -204,12 +204,12 @@ export module Services {
       return BrandingService.getBrandById(record.metaMetadata.brandId)
     }
 
-    private getOption(branding,option,key, defaultValue = undefined) {
+    private getOption(branding, option, key, defaultValue = undefined) {
       let value = sails.config.brandingAware(branding.name).pdfgen[key];
-      if(option[key] !== undefined) {
+      if (option[key] !== undefined) {
         value = option[key];
       }
-      if(value === undefined) {
+      if (value === undefined) {
         return defaultValue;
       }
       return value;
@@ -217,11 +217,11 @@ export module Services {
 
 
     public createPDF(oid, record, options, user) {
-      return Observable.fromPromise(this.generatePDF(oid, record, options));
+      return from(this.generatePDF(oid, record, options));
     }
 
     private delay(time) {
-      return new Promise(function(resolve) {
+      return new Promise(function (resolve) {
         setTimeout(resolve, time)
       });
     }
