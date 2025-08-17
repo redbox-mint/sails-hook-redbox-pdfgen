@@ -150,7 +150,7 @@ export module Services {
           format: 'A4',
           printBackground: true
         };
-        ;
+        
         if (this.getOption(brand, options, 'PDFOptions')) {
           let pdfOptions = this.getOption(brand, options, 'PDFOptions')
           // We don't want the file path to be overriden
