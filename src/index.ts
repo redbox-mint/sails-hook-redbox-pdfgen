@@ -2,11 +2,8 @@ import type { Sails } from 'sails';
 import * as path from 'path';
 import { pdfgen } from './config/pdfgen';
 
-try {
-  require('@researchdatabox/redbox-core');
-} catch (_error) {
-  require('@researchdatabox/redbox-core-types');
-}
+require('@researchdatabox/redbox-core');
+
 
 module.exports = function (sails: Sails.Application): Sails.Hook {
   return {
@@ -17,13 +14,6 @@ module.exports = function (sails: Sails.Application): Sails.Hook {
       } else {
         sails.log.warn('sails-hook-redbox-pdfgen: ConfigService not available, skipping service loading');
       }
-
-      const defaultToken = (sails.config as any)?.auth?.default?.local?.default?.token;
-      (sails.config as any).brandingConfigurationDefaults = (sails.config as any).brandingConfigurationDefaults || {};
-      (sails.config as any).brandingConfigurationDefaults.pdfgen = {
-        ...(sails.config as any).brandingConfigurationDefaults.pdfgen,
-        token: (sails.config as any).brandingConfigurationDefaults.pdfgen?.token ?? defaultToken
-      };
 
       sails.after('hook:moduleloader:loaded', () => {
         try {

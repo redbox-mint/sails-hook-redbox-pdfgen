@@ -12,7 +12,16 @@ import {
   Datastream,
   DatastreamService
 } from '@researchdatabox/redbox-core';
+import { Duration, Effect, Schedule } from 'effect';
 import type { PdfgenConfig } from '../../config/pdfgen';
+import {
+  BrowserError,
+  DatastreamSaveError,
+  MissingServiceError,
+  MissingTokenError,
+  PDFError,
+  PDFRenderError
+} from './PDFErrors';
 
 
 export namespace Services {
@@ -40,6 +49,33 @@ export namespace Services {
         }
       });
     }
+
+    private logWarn(message: string, ...args: Array<unknown>) {
+      return Effect.sync(() => sails.log.warn(message, ...args)).pipe(Effect.zipRight(Effect.logWarning(message)));
+    }
+
+    private logError(message: string, ...args: Array<unknown>) {
+      return Effect.sync(() => sails.log.error(message, ...args)).pipe(Effect.zipRight(Effect.logError(message)));
+    }
+
+    private logDebug(message: string, ...args: Array<unknown>) {
+      return Effect.sync(() => sails.log.debug(message, ...args)).pipe(Effect.zipRight(Effect.logDebug(message)));
+    }
+
+    private isRetryable(error: PDFError): boolean {
+      return error._tag === 'BrowserError' || error._tag === 'PDFRenderError';
+    }
+
+    private buildRetrySchedule(brand: any, options: any) {
+      const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
+      const baseDelayMs = this.getOption(brand, options, 'retryDelayMs', 5000);
+      const multiplier = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
+
+      return Schedule.recurs(maxRetries).pipe(
+        Schedule.addDelay((attempt) => Duration.millis(baseDelayMs * Math.pow(multiplier, Number(attempt))))
+      );
+    }
+
 
     private async waitForPageReady(page: any, brand: any, options: any): Promise<void> {
       const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
@@ -82,87 +118,121 @@ export namespace Services {
       }
     }
 
-    private async generatePDF(oid: string, record: any, options: any, attempt: number = 1): Promise<{ success: boolean, reason?: any, retryScheduled?: boolean }> {
-      sails.log.verbose(`PDFService::Creating PDF for: ${oid} (Attempt ${attempt})`);
+    private attemptPDFGeneration(oid: string, record: any, options: any, brand: any, attempt: number): Effect.Effect<void, PDFError> {
+      return Effect.scoped(Effect.gen(this, function* () {
+        yield* Effect.sync(() => sails.log.verbose(`PDFService::Creating PDF for: ${oid} (Attempt ${attempt})`));
 
-      const brand = this.getBranding(record);
-      
+        const token = this.getOption(brand, options, 'token');
+        if (!token) {
+          yield* this.logWarn(`PDFService::API token for PDF generation is not set. Skipping generation: ${oid}`);
+          return yield* Effect.fail(new MissingTokenError({ oid }));
+        }
 
+        const tmpUserDataDir = yield* Effect.acquireRelease(
+          Effect.tryPromise({
+            try: () => fs.mkdtemp(path.join(os.tmpdir(), 'pdfgen')),
+            catch: (cause) => new BrowserError({ oid, url: '', cause })
+          }),
+          (dir) => Effect.promise(() => fs.rm(dir, { recursive: true, force: true })).pipe(Effect.catchAll(() => Effect.void))
+        );
 
-      // Check that the token is provided
-      let token = this.getOption(brand, options, 'token');
-      if (!token) {
-        const msg = `PDFService::API token for PDF generation is not set. Skipping generation: ${oid}`;
-        sails.log.warn(msg);
-        return { success: false, reason: msg, retryScheduled: false };
-      }
-
-      let browser;
-      let tmpUserDataDir;
-      let currentURL = '';
-      try {
-        // Start the browser
-        sails.log.verbose(`PDFService::Launching browser....`);
-        // Ensure the user data dir is new each run so that the browser is completely clean
-        tmpUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdfgen'));
-        // Prefer host-installed Chromium/Chrome where available to avoid architecture mismatches.
         const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
           || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable'].find(candidate => existsSync(candidate));
 
-        browser = await launch({
-          headless: true,
-          executablePath,
-          args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`]
+        const browser = yield* Effect.acquireRelease(
+          Effect.tryPromise({
+            try: () => launch({
+              headless: true,
+              executablePath,
+              args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`]
+            }),
+            catch: (cause) => new BrowserError({ oid, url: '', cause })
+          }),
+          (instance) => Effect.promise(async () => {
+            try {
+              await instance.close();
+            } catch {
+              // ignore close failures, process kill below handles the hard stop
+            }
+            const proc = instance.process?.();
+            if (proc) {
+              proc.kill('SIGTERM');
+            }
+          }).pipe(Effect.catchAll(() => Effect.void))
+        );
+
+        const page = yield* Effect.acquireRelease(
+          Effect.tryPromise({
+            try: () => browser.newPage(),
+            catch: (cause) => new BrowserError({ oid, url: '', cause })
+          }),
+          (instance) => Effect.promise(() => instance.close()).pipe(Effect.catchAll(() => Effect.void))
+        );
+
+        yield* Effect.sync(() => {
+          page.setExtraHTTPHeaders({
+            Authorization: 'Bearer ' + token
+          });
         });
 
-        // Create a browser page
-        sails.log.verbose(`PDFService::Creating new page....`)
-        const page = await browser.newPage();
-        page.setExtraHTTPHeaders({
-          Authorization: 'Bearer ' + token
-        });
-
-        // Enable Chrome logging if configured
         const enableLogging = this.getOption(brand, options, 'enableChromeLogging');
         if (enableLogging === true || enableLogging === 'true') {
-          page.on('console', msg => {
-            sails.log.verbose(`PDFService::Chrome Console:${msg.text()}`)
-          });
-          page.on('pageerror', error => {
-            sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
-          });
-          page.on('response', response => {
-            sails.log.verbose(`PDFService::Chrome Response: ${response.status()}, URL:${response.url()}`);
-          });
-          page.on('requestfailed', request => {
-            sails.log.error(`PDFService::Chrome Error: ${request.failure()?.errorText}, URL: ${request.url()}`);
+          yield* Effect.sync(() => {
+            page.on('console', (msg: any) => {
+              sails.log.verbose(`PDFService::Chrome Console:${msg.text()}`);
+            });
+            page.on('pageerror', (error: Error) => {
+              sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
+            });
+            page.on('response', (response: any) => {
+              sails.log.verbose(`PDFService::Chrome Response: ${response.status()}, URL:${response.url()}`);
+            });
+            page.on('requestfailed', (request: any) => {
+              sails.log.error(`PDFService::Chrome Error: ${request.failure()?.errorText}, URL: ${request.url()}`);
+            });
           });
         }
 
-        let sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`);
-        let pdfgenAppUrlOverride = this.getOption(brand, options, 'appUrlOverride');
-        sails.log.verbose(`PDFService::sourceUrlBase ${sourceUrlBase}`);
-        sails.log.verbose(`PDFService::sails.config.pdfgen.appUrlOverride ${pdfgenAppUrlOverride}`);
-        let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
-        currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
-        this.processMap.set(currentURL, true);
-        sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
+        const sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`);
+        const pdfgenAppUrlOverride = this.getOption(brand, options, 'appUrlOverride');
+        const baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
+        const currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
 
-        await page.goto(currentURL, { waitUntil: 'domcontentloaded' });
+        yield* Effect.addFinalizer(() => Effect.sync(() => {
+          this.processMap.delete(currentURL);
+        }));
 
-        await this.waitForPageReady(page, brand, options);
-        
-        sails.log.verbose(`PDFService::Page ready: ${currentURL}, generating PDF...`);
+        yield* Effect.sync(() => {
+          sails.log.verbose(`PDFService::sourceUrlBase ${sourceUrlBase}`);
+          sails.log.verbose(`PDFService::sails.config.pdfgen.appUrlOverride ${pdfgenAppUrlOverride}`);
+          this.processMap.set(currentURL, true);
+        });
 
-        // Build the path to the pdf file
+        yield* this.logDebug(`PDFService::Chromium loading page: ${currentURL}`);
+
+        yield* Effect.tryPromise({
+          try: () => page.goto(currentURL, { waitUntil: 'domcontentloaded' }),
+          catch: (cause) => new BrowserError({ oid, url: currentURL, cause })
+        }).pipe(Effect.withSpan('navigatePage', { attributes: { oid, attempt, url: currentURL } }));
+
+        yield* Effect.tryPromise({
+          try: () => this.waitForPageReady(page, brand, options),
+          catch: (cause) => new BrowserError({ oid, url: currentURL, cause })
+        }).pipe(Effect.withSpan('waitForPageReady', {
+          attributes: {
+            oid,
+            attempt,
+            strategy: this.getOption(brand, options, 'readinessStrategy', 'networkIdle')
+          }
+        }));
+
+        yield* Effect.sync(() => sails.log.verbose(`PDFService::Page ready: ${currentURL}, generating PDF...`));
+
         const date = DateTime.now().toMillis();
         const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
-        const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
-        
-        sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
+        const fileId = `${pdfPrefix}-${oid}-${date}.pdf`;
 
         let pdfOptions = this.getOption(brand, options, 'PDFOptions') || {};
-        // We don't want the file path to be overriden since we will get a buffer
         delete pdfOptions['path'];
 
         const defaultPDFOptions: any = {
@@ -170,75 +240,52 @@ export namespace Services {
           printBackground: true,
           ...pdfOptions
         };
-        
-        const pdfBuffer = await page.pdf(defaultPDFOptions);
-        sails.log.debug(`PDFService::Generated PDF buffer`);
 
-        // Release browser resources
-        await page.close();
-        await browser.close();
+        const pdfBuffer = yield* Effect.tryPromise({
+          try: () => page.pdf(defaultPDFOptions),
+          catch: (cause) => new PDFRenderError({ oid, cause })
+        }).pipe(Effect.withSpan('renderPDFBuffer', { attributes: { oid, attempt } }));
 
-        // Save the pdf file to the datastream service
-        sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
+        yield* this.logDebug(`PDFService::Generated PDF buffer`);
+        yield* Effect.sync(() => sails.log.verbose(`PDFService::Saving PDF: ${oid}`));
+
         const stagingDisk = StorageManagerService.stagingDisk();
-        await stagingDisk.put(fileId, pdfBuffer);
+        yield* Effect.tryPromise({
+          try: () => stagingDisk.put(fileId, pdfBuffer),
+          catch: (cause) => new DatastreamSaveError({ oid, cause })
+        }).pipe(Effect.withSpan('saveToDatastream', { attributes: { oid, attempt, fileId } }));
 
         const datastream = new Datastream({ fileId: fileId, name: fileId });
-        await this.DatastreamService.addDatastream(oid, datastream, stagingDisk);
-        sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
+        yield* Effect.tryPromise({
+          try: () => this.DatastreamService.addDatastream(oid, datastream, stagingDisk),
+          catch: (cause) => new DatastreamSaveError({ oid, cause })
+        });
 
-        return { success: true };
-      } catch (e: any) {
-        const errorStack = e.stack || e.message || String(e);
-        sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
-        sails.log.error(`Context: brand=${brand.name}, oid=${oid}, url=${currentURL}, attempt=${attempt}`);
-        sails.log.error(errorStack);
-        
-        try {
-          if (browser) {
-            await browser.close();
-          }
-        } catch (err: any) {
-          sails.log.error(`PDFService::Failed to close browser after error: ${err.message}`);
-        }
+        yield* this.logDebug(`PDFService::Saved PDF to storage: ${oid}`);
+      })).pipe(Effect.withSpan('generatePDF', { attributes: { oid, attempt, brand: brand.name } }));
+    }
 
-        const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
-        // Basic check for transient failures vs non-retryable
-        const isTransient = true; // In Puppeteer most errors like navigation timeout are transient
-        if (isTransient && attempt <= maxRetries) {
-          const retryDelay = this.getOption(brand, options, 'retryDelayMs', 5000);
-          const backoff = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
-          const delay = retryDelay * Math.pow(backoff, attempt - 1);
-          
-          sails.log.warn(`PDFService::Scheduling retry ${attempt} of ${maxRetries} for ${oid} in ${delay}ms`);
-          setTimeout(() => {
-            this.generatePDF(oid, record, options, attempt + 1).catch(err => {
-              sails.log.error(`PDFService::Retry failed for ${oid}: ${err.message}`);
-            });
-          }, delay);
-          
-          return { success: false, reason: e, retryScheduled: true };
-        } else {
-          sails.log.error(`PDFService::Max retries exhausted for ${oid} or non-retryable error.`);
-          return { success: false, reason: e, retryScheduled: false };
-        }
+    private generatePDF(oid: string, record: any, options: any) {
+      const brand = this.getBranding(record);
+      let attempt = 0;
 
-      } finally {
-        // clean up in case browser didn't close properly
-        if (browser && browser.process() != null) {
-          browser.process().kill('SIGTERM');
-        }
-        if (tmpUserDataDir) {
-          await fs.rm(tmpUserDataDir, { recursive: true, force: true });
-        }
-        if (currentURL) {
-          this.processMap.delete(currentURL);
-        }
-      }
+      return Effect.suspend(() => {
+        attempt += 1;
+        return this.attemptPDFGeneration(oid, record, options, brand, attempt);
+      }).pipe(
+        Effect.retry({
+          schedule: this.buildRetrySchedule(brand, options),
+          while: (error: PDFError) => this.isRetryable(error)
+        }),
+        Effect.withSpan('createPDF', { attributes: { oid, brand: brand.name } })
+      );
     }
 
     private getBranding(record: any) {
-      return BrandingService.getBrandById(record.metaMetadata.brandId)
+      if (typeof BrandingService === 'undefined') {
+        throw new Error('BrandingService global is not available');
+      }
+      return BrandingService.getBrandById(record.metaMetadata.brandId);
     }
 
     private getOption(branding: any, option: any, key: keyof PdfgenConfig | string, defaultValue: any = undefined) {
@@ -257,15 +304,52 @@ export namespace Services {
 
 
     public createPDF(oid: string, record: any, options: any, user: any) {
-      // Return the observable so the workflow doesn't block on failures/retries
-      // We wrap it in a try/catch promise to resolve with the record always
-      const promise = this.generatePDF(oid, record, options).then(result => {
-        if (!result.success) {
-           sails.log.warn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: ${result.retryScheduled}`);
-        }
-        return record;
-      });
-      return from(promise);
+      const brand = this.getBranding(record);
+      const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
+      const baseDelayMs = this.getOption(brand, options, 'retryDelayMs', 5000);
+      const multiplier = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
+
+      const runBackgroundRetries = (remainingRetries: number, nextAttempt: number): Effect.Effect<void, never> =>
+        remainingRetries <= 0
+          ? Effect.void
+          : Effect.gen(this, function* () {
+              const retryIndex = maxRetries - remainingRetries;
+              const delayMs = baseDelayMs * Math.pow(multiplier, retryIndex);
+              yield* this.logWarn(`PDFService::Scheduling retry ${nextAttempt - 1} of ${maxRetries} for ${oid} in ${delayMs}ms`);
+              yield* Effect.sleep(Duration.millis(delayMs));
+              yield* this.attemptPDFGeneration(oid, record, options, brand, nextAttempt).pipe(
+                Effect.catchAll((error: PDFError) => {
+                  if (this.isRetryable(error)) {
+                    if (remainingRetries === 1) {
+                      return this.logError(`PDFService::Max retries exhausted for ${oid} or non-retryable error.`, error);
+                    }
+                    return runBackgroundRetries(remainingRetries - 1, nextAttempt + 1);
+                  }
+                  return this.logWarn(`PDFService::non-retryable failure, skipping`, error);
+                })
+              );
+            });
+
+      const effect = this.attemptPDFGeneration(oid, record, options, brand, 1).pipe(
+        Effect.catchAll((error: PDFError) => {
+          if (this.isRetryable(error)) {
+            return Effect.gen(this, function* () {
+              yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true`);
+              yield* Effect.forkDaemon(runBackgroundRetries(maxRetries, 2));
+            });
+          }
+
+          if (error._tag === 'MissingTokenError') {
+            return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false`);
+          }
+
+          return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false`);
+        }),
+        Effect.as(record),
+        Effect.withSpan('createPDF', { attributes: { oid, brand: brand.name } })
+      );
+
+      return from(Effect.runPromise(effect));
     }
   }
 }

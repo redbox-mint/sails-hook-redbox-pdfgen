@@ -1,19 +1,24 @@
 import { expect } from 'chai';
+import { Effect } from 'effect';
+import { createRequire } from 'node:module';
 import * as sinon from 'sinon';
-import { Services } from '../PDFService';
 
-declare var sails: any;
-declare var BrandingService: any;
 declare var global: any;
+
+const require = createRequire(import.meta.url);
 
 describe('PDFService Unit Tests', () => {
     let pdfService: any;
     let mockPage: any;
     let mockBrowser: any;
-    let launchStub: sinon.SinonStub;
     let storageDiskPutStub: sinon.SinonStub;
+    let addDatastreamStub: sinon.SinonStub;
 
-    beforeEach(() => {
+    beforeEach(function () {
+        this.timeout(10000);
+        storageDiskPutStub = sinon.stub().resolves();
+        addDatastreamStub = sinon.stub().resolves({});
+
         global.sails = {
             log: {
                 verbose: sinon.stub(),
@@ -29,17 +34,18 @@ describe('PDFService Unit Tests', () => {
                     })
                 },
                 standarddatastreamservice: {
-                    addDatastream: sinon.stub().resolves({})
+                    addDatastream: addDatastreamStub
                 }
             },
             config: {
                 appUrl: 'http://localhost:1500',
-                brandingAware: (brand: string) => ({
+                brandingAware: () => ({
                     pdfgen: {
                         token: 'test-token'
                     }
                 }),
                 record: {
+                    datastreamService: 'standarddatastreamservice',
                     attachments: {
                         stageDir: '/tmp'
                     }
@@ -50,18 +56,14 @@ describe('PDFService Unit Tests', () => {
         global.BrandingService = {
             getBrandById: sinon.stub().returns({ name: 'default' })
         };
-
+        global.StorageManagerService = global.sails.services.storagemanagerservice;
         global._ = require('lodash');
 
-        // Compile output keeps the Services namespace on exports for direct construction in tests.
-        const fs = require('fs');
-        const vm = require('vm');
-        const code = fs.readFileSync(__dirname + '/../../../../dist/api/services/PDFService.js', 'utf8');
-        const sandbox = { ...global, exports: {}, module: {}, require: require, sails: global.sails, Buffer: Buffer, setTimeout: setTimeout, clearTimeout: clearTimeout };
-        vm.createContext(sandbox);
-        vm.runInContext(code, sandbox);
-        
-        pdfService = new sandbox.exports.Services.PDF();
+        const compiledServicePath = require.resolve('../../dist/api/services/PDFService.js');
+        delete require.cache[compiledServicePath];
+        const compiledService = require(compiledServicePath);
+        pdfService = new compiledService.Services.PDF();
+        pdfService.DatastreamService = global.sails.services.standarddatastreamservice;
 
         mockPage = {
             setExtraHTTPHeaders: sinon.stub(),
@@ -81,8 +83,7 @@ describe('PDFService Unit Tests', () => {
         };
 
         const puppeteer = require('puppeteer');
-        launchStub = sinon.stub(puppeteer, 'launch').resolves(mockBrowser);
-        storageDiskPutStub = sinon.stub().resolves();
+        sinon.stub(puppeteer, 'launch').resolves(mockBrowser);
     });
 
     afterEach(() => {
@@ -90,100 +91,106 @@ describe('PDFService Unit Tests', () => {
     });
 
     it('should fail fast if required services are missing', async () => {
-        delete global.sails.services['storagemanagerservice'];
-        
-        let errorCaught = false;
-        try {
-            await pdfService.generatePDF('oid-1', { metaMetadata: { brandId: 1 } }, {}).catch(() => {});
-            // Actually it resolves but with success: false
-            const res = await pdfService.generatePDF('oid-1', { metaMetadata: { brandId: 1 } }, {});
-            expect(res.success).to.be.false;
-            expect(res.reason).to.contain('Required services missing');
-        } catch(e) {
-            errorCaught = true;
-        }
+        delete global.sails.services.storagemanagerservice;
+        delete global.StorageManagerService;
+
+        const service: any = pdfService;
+        const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', { metaMetadata: { brandId: 1 } }, {}));
+
+        expect(exit._tag).to.equal('Failure');
+        expect((exit as any).cause).to.exist;
     });
 
     it('should fall back to networkIdle strategy if unknown strategy provided', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = { readinessStrategy: 'invalidStrategy' };
 
-        // Need to use any to access private methods in tests
         const service: any = pdfService;
-        const result = await service.generatePDF('oid-1', record, options);
-        expect(result.success).to.be.true;
-        
+        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+
         expect(mockPage.waitForNetworkIdle.called).to.be.true;
         expect(global.sails.log.warn.calledWithMatch(/Unknown readinessStrategy/)).to.be.true;
     });
 
     it('should use selector strategy', async () => {
         const record = { metaMetadata: { brandId: 1 } };
-        const options = { 
+        const options = {
             readinessStrategy: 'selector',
             waitForSelector: '#ready'
         };
 
         const service: any = pdfService;
-        const result = await service.generatePDF('oid-1', record, options);
-        expect(result.success).to.be.true;
-        
+        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+
         expect(mockPage.waitForSelector.calledWith('#ready')).to.be.true;
         expect(mockPage.waitForNetworkIdle.called).to.be.false;
     });
 
     it('should use jsFlag strategy', async () => {
         const record = { metaMetadata: { brandId: 1 } };
-        const options = { 
+        const options = {
             readinessStrategy: 'jsFlag',
             waitForFunction: 'window.isReady === true'
         };
 
         const service: any = pdfService;
-        const result = await service.generatePDF('oid-1', record, options);
-        expect(result.success).to.be.true;
-        
+        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+
         expect(mockPage.waitForFunction.calledWith('window.isReady === true')).to.be.true;
     });
 
-    it('should schedule retry on transient failure', async () => {
+    it('should retry transient failures in the blocking effect', async () => {
         const record = { metaMetadata: { brandId: 1 } };
-        const options = { 
-            retryDelayMs: 10 // small delay for test
+        const options = {
+            retryDelayMs: 10
         };
 
-        // Make page.goto fail on first try, succeed on second
         mockPage.goto.onFirstCall().rejects(new Error('Navigation timeout'));
         mockPage.goto.onSecondCall().resolves();
 
         const service: any = pdfService;
-        const result = await service.generatePDF('oid-1', record, options);
-        
-        expect(result.success).to.be.false;
-        expect(result.retryScheduled).to.be.true;
-        expect(global.sails.log.warn.calledWithMatch(/Scheduling retry/)).to.be.true;
+        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+
+        expect(mockPage.goto.calledTwice).to.be.true;
     });
 
-    it('should not retry beyond maxRetries', async () => {
+    it('should stop retrying beyond maxRetries', async () => {
         const record = { metaMetadata: { brandId: 1 } };
-        const options = { 
-            maxRetries: 1
+        const options = {
+            maxRetries: 1,
+            retryDelayMs: 1
         };
 
         mockPage.goto.rejects(new Error('Navigation timeout'));
 
         const service: any = pdfService;
+        const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', record, options));
 
-        // simulate first call
-        const result = await service.generatePDF('oid-1', record, options, 1);
-        expect(result.success).to.be.false;
-        expect(result.retryScheduled).to.be.true;
-
-        // simulate second call (retry 2, max 1)
-        const result2 = await service.generatePDF('oid-1', record, options, 2);
-        expect(result2.success).to.be.false;
-        expect(result2.retryScheduled).to.be.false;
-        expect(global.sails.log.error.calledWithMatch(/Max retries exhausted/)).to.be.true;
+        expect(exit._tag).to.equal('Failure');
+        expect(mockPage.goto.callCount).to.equal(2);
     });
 
+    it('should return the record immediately from createPDF and schedule background retries', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {
+            maxRetries: 1,
+            retryDelayMs: 10
+        };
+
+        mockPage.goto.onFirstCall().rejects(new Error('Navigation timeout'));
+        mockPage.goto.onSecondCall().resolves();
+
+        const observable = pdfService.createPDF('oid-1', record, options, {});
+        const result = await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
+
+        expect(result).to.equal(record);
+        expect(mockPage.goto.callCount).to.equal(1);
+
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        expect(mockPage.goto.callCount).to.equal(2);
+        expect(global.sails.log.warn.calledWithMatch(/Retry scheduled: true/)).to.be.true;
+    });
 });

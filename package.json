@@ -15,6 +15,7 @@
     "test": "npm run test:mocha:docker",
     "pretest": "npm install --ignore-scripts && npm run compile",
     "compile:tsc": "./node_modules/typescript/bin/tsc",
+    "test:unit": "npm run compile && npx mocha --require tsx/cjs \"test/unit/**/*.spec.ts\"",
     "dev:host": "./support/prepare-host.sh",
     "dev:host:clean": "sudo rm -rf ./support/.tmp && docker volume prune -af",
     "dev:docker": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f ./support/docker-compose.yml up --remove-orphans",
@@ -53,6 +54,7 @@
   },
   "dependencies": {
     "@researchdatabox/redbox-core": "file:../redbox-portal/packages/redbox-core",
+    "effect": "^3.19.19",
     "lodash": "^4.17.21",
     "puppeteer": "^22.15.0",
     "typescript": "^5.4.5"

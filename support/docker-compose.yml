@@ -33,8 +33,10 @@ services:
       dockerfile: "./support/Dockerfile"
     expose:
       - "1500"
+      - "9876"
     ports:
       - "1500:1500"
+      - "9876:9876"
     environment:
       - "NODE_ENV=${RBPORTAL_NODE_ENV:-production}"
       - "sails_appUrl=http://localhost:1500"
@@ -82,7 +84,7 @@ services:
       /bin/bash -c "
       /opt/sails-hook-redbox-pdfgen/support/prepare-guest.sh &&
       cd /opt/redbox-portal &&
-      node --enable-source-maps app.js"
+      node --inspect=0.0.0.0:9876 --enable-source-maps app.js"
 
   mongodb:
     image: "mongo:6"
