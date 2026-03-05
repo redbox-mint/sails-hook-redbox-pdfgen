@@ -52,9 +52,7 @@ module.exports = function (sails: Sails.Application): Sails.Hook {
 
 module.exports.registerRedboxConfig = function () {
   return {
-    pdfgen,
-    agendaQueue: require('../config/agendaQueue').agendaQueue,
-    recordtype: require('../config/recordtype').recordtype
+    pdfgen
   };
 };
 

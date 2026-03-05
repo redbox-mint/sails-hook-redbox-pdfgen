@@ -60,6 +60,7 @@ services:
     volumes:
       - ".tmp/attachments:/attachments"
       - "../:/opt/sails-hook-redbox-pdfgen"
+      - "../config/agendaQueue.js:/opt/redbox-portal/packages/redbox-core/dist/config/agendaQueue.config.js:ro"
       - "../config/recordtype.js:/opt/redbox-portal/packages/redbox-core/dist/config/recordtype.config.js:ro"
       - "../../redbox-portal/packages/redbox-core/src/services/FormsService.ts:/opt/redbox-portal/packages/redbox-core/src/services/FormsService.ts"
       - "../../redbox-portal/packages/redbox-core/dist/services/FormsService.js:/opt/redbox-portal/packages/redbox-core/dist/services/FormsService.js"
