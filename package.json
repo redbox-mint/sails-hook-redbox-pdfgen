@@ -31,16 +31,21 @@
   "author": "Andrew Brazzatti",
   "license": "GPL-3.0",
   "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.14.13",
-    "chai": "^5.1.1",
+    "@types/sinon": "^21.0.0",
+    "chai": "^4.3.7",
     "mocha": "^10.7.0",
     "sails": "^1.5.10",
+    "sinon": "^21.0.2",
     "stream": "^0.0.3",
-    "supertest": "^6.3.4"
+    "supertest": "^6.3.4",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0"
   },
   "dependencies": {
-    "@researchdatabox/redbox-core-types": "^1.5.0",
-    "fs": "^0.0.1-security",
+    "@researchdatabox/redbox-core": "file:../redbox-portal/packages/redbox-core",
     "lodash": "^4.17.21",
     "puppeteer": "^22.15.0",
     "typescript": "^5.4.5"

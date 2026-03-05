@@ -19,8 +19,6 @@ module.exports = function (sails) {
       sails.after('hook:moduleloader:loaded', async () => {
         try {
           const { PDFGenConfig } = require('./api/configmodels/PDFGenConfig');
-          sails.log.error('sails.services')
-          sails.log.error(sails.services.appconfigservice)
           sails.services.appconfigservice.registerConfigModel(
             {key: 'pdfgen', model: PDFService, modelName: 'PDFGenConfig', title: 'PDF Generation Config', class: PDFGenConfig, tsGlob: __dirname + '/typescript/api/configmodels/*.ts'}
           );

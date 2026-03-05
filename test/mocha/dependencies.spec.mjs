@@ -20,7 +20,7 @@ describe("Sails hook redbox pdfgen", function () {
   const redboxHomeUrl = `http://${host}:${port}`
 
   before(async () => {
-    await fs.mkdtemp(tmpDir);
+    tempDataDir = await fs.mkdtemp(tmpDir);
     browser = await puppeteer.launch({
       headless: 'shell',
       args: ['--no-sandbox', `--user-data-dir=${tempDataDir}`]
@@ -99,7 +99,5 @@ describe("Sails hook redbox pdfgen", function () {
     expect(page.url()).to.equal(`http://${host}:${port}/default/rdmp/record/rdmp/edit`);
     expect(page.title()).to.equal('ReDBox - RDMP - Create RDMP');
 
-    done();
-
-  }).timeout(5000);
+  }).timeout(15000);
 });

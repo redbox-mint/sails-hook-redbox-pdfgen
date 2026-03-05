@@ -1,42 +1,22 @@
-// Copyright (c) 2017 Queensland Cyber Infrastructure Foundation (http://www.qcif.edu.au/)
-//
-// GNU GENERAL PUBLIC LICENSE
-//    Version 2, June 1991
-//
-// This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with this program; if not, write to the Free Software Foundation, Inc.,
-// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
 import { from } from 'rxjs';
 
 import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
 import { DateTime } from 'luxon';
-const fs = require('node:fs/promises');
-const os = require('node:os');
-const path = require('path');
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'path';
 
 import { Services as service, Datastream } from '@researchdatabox/redbox-core-types';
 
 declare var sails: Sails;
 declare var RecordType: Model;
-declare var _this;
-declare var _;
-declare var User;
-declare var RecordsService;
-declare var BrandingService;
+declare var _this: any;
+declare var _: any;
+declare var User: any;
+declare var BrandingService: any;
 
-export module Services {
+export namespace Services {
   /**
    * WorkflowSteps related functions...
    *
@@ -45,46 +25,78 @@ export module Services {
    */
   export class PDF extends service.Core.Service {
 
-    public processMap: any = {};
+    private processMap: Map<string, boolean> = new Map<string, boolean>();
 
     protected _exportedMethods: any = [
       'createPDF',
     ];
 
-    private async generatePDF(oid: string, record: any, options: any) {
-      sails.log.verbose("PDFService::Creating PDF for: " + oid);
+    private async waitForPageReady(page: any, brand: any, options: any): Promise<void> {
+      const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
+      const timeout = this.getOption(brand, options, 'readinessTimeout', 60000);
+
+      switch (strategy) {
+        case 'networkIdle':
+          await page.waitForNetworkIdle({
+            idleTime: this.getOption(brand, options, 'networkIdleTime', 2000),
+            timeout
+          });
+          break;
+        case 'selector':
+          await page.waitForSelector(
+            this.getOption(brand, options, 'waitForSelector'), { timeout }
+          );
+          break;
+        case 'jsFlag':
+          await page.waitForFunction(
+            this.getOption(brand, options, 'waitForFunction'),
+            { timeout, polling: 500 }
+          );
+          break;
+        case 'networkIdle+selector':
+          await page.waitForNetworkIdle({
+            idleTime: this.getOption(brand, options, 'networkIdleTime', 2000),
+            timeout
+          });
+          await page.waitForSelector(
+            this.getOption(brand, options, 'waitForSelector'), { timeout }
+          );
+          break;
+        default:
+          sails.log.warn(`PDFService::Unknown readinessStrategy '${strategy}', falling back to networkIdle`);
+          await page.waitForNetworkIdle({
+            idleTime: this.getOption(brand, options, 'networkIdleTime', 2000),
+            timeout
+          });
+          break;
+      }
+    }
+
+    private async generatePDF(oid: string, record: any, options: any, attempt: number = 1): Promise<{ success: boolean, reason?: any, retryScheduled?: boolean }> {
+      sails.log.verbose(`PDFService::Creating PDF for: ${oid} (Attempt ${attempt})`);
 
       const brand = this.getBranding(record);
+      
+      const StorageManagerService = sails.services['storagemanagerservice'];
+      const DatastreamService = sails.services['standarddatastreamservice'];
 
-      // Added to support storage backend hooks, degrading gracefully
-      let datastreamService = RecordsService;
-      let compatMode = false;
-      if (_.isEmpty(sails.config.record) || _.isEmpty(sails.config.record.datastreamService)) {
-        if (!_.isEmpty(datastreamService.addDatastream) && _.isFunction(datastreamService.addDatastream)) {
-          sails.log.warn(`PDFService::Plugin is guessing which DatastreamService to use, please set 'sails.config.record.datastreamService' explicitly or use the appropriate version of the PDF plugin.`);
-          compatMode = true;
-        } else {
-          sails.log.error(`PDFService::Failed to retrieve datastream service name, please set 'sails.config.storage.serviceName'`);
-          return;
-        }
-      } else {
-        sails.log.verbose(`PDFService::Using datastreamService: ${sails.config.record.datastreamService}`);
-        datastreamService = sails.services[sails.config.record.datastreamService];
-        if (_.isUndefined(datastreamService)) {
-          sails.log.error(`PDFService::Could not find datastreamService!`);
-          return;
-        }
+      if (!StorageManagerService || !DatastreamService) {
+        const msg = `PDFService::Required services missing: storagemanagerservice or standarddatastreamservice. Ensure ReDBox core-types version is compatible.`;
+        sails.log.error(msg);
+        return { success: false, reason: msg, retryScheduled: false };
       }
 
       // Check that the token is provided
       let token = this.getOption(brand, options, 'token');
       if (!token) {
-        sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
-        return;
+        const msg = `PDFService::API token for PDF generation is not set. Skipping generation: ${oid}`;
+        sails.log.warn(msg);
+        return { success: false, reason: msg, retryScheduled: false };
       }
 
       let browser;
       let tmpUserDataDir;
+      let currentURL = '';
       try {
         // Start the browser
         sails.log.verbose(`PDFService::Launching browser....`);
@@ -100,65 +112,61 @@ export module Services {
         page.setExtraHTTPHeaders({
           Authorization: 'Bearer ' + token
         });
-        // using string flag so we can inject via env var
 
-        if (_.get(sails.config.brandingAware(brand.name).pdfgen, 'enableChromeLogging') == 'true') {
+        // Enable Chrome logging if configured
+        const enableLogging = this.getOption(brand, options, 'enableChromeLogging');
+        if (enableLogging === true || enableLogging === 'true') {
           page.on('console', msg => {
-            sails.log.verbose(`PDFService::Chrome Console:${msg.text}`)
+            sails.log.verbose(`PDFService::Chrome Console:${msg.text()}`)
           });
           page.on('pageerror', error => {
             sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
           });
           page.on('response', response => {
-            sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${response.url}`);
+            sails.log.verbose(`PDFService::Chrome Response: ${response.status()}, URL:${response.url()}`);
           });
           page.on('requestfailed', request => {
-            sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
+            sails.log.error(`PDFService::Chrome Error: ${request.failure()?.errorText}, URL: ${request.url()}`);
           });
         }
 
-        let sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`)
-        let pdfgenAppUrlOverride = _.get(sails.config.brandingAware(brand.name).pdfgen, 'appUrlOverride');
-        sails.log.verbose('PDFService::sourceUrlBase ' + sourceUrlBase);
-        sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride ' + pdfgenAppUrlOverride);
+        let sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`);
+        let pdfgenAppUrlOverride = this.getOption(brand, options, 'appUrlOverride');
+        sails.log.verbose(`PDFService::sourceUrlBase ${sourceUrlBase}`);
+        sails.log.verbose(`PDFService::sails.config.pdfgen.appUrlOverride ${pdfgenAppUrlOverride}`);
         let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
-        let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
-        this.processMap[currentURL] = true;
+        currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
+        this.processMap.set(currentURL, true);
         sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
 
-        // Go to the page and wait for the page to load
-        await page.goto(currentURL, { waitUntil: 'networkidle2', });
+        const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
+        const isNetworkIdleFirst = strategy === 'networkIdle' || strategy === 'networkIdle+selector';
+        
+        await page.goto(currentURL, { waitUntil: 'domcontentloaded' });
 
-        // Wait for the page selector to be available
-        await page.waitForSelector(this.getOption(brand, options, 'waitForSelector'), { timeout: 60000 });
-        sails.log.verbose(`PDFService::loaded page: ${currentURL}, waiting further...`);
-        await this.delay(1500);
+        await this.waitForPageReady(page, brand, options);
+        
+        sails.log.verbose(`PDFService::Page ready: ${currentURL}, generating PDF...`);
 
         // Build the path to the pdf file
         const date = DateTime.now().toMillis();
         const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`
-        const targetDir = sails.config.record.attachments.stageDir;
-        sails.log.verbose(`PDFService::Checking target dir: ${targetDir}`);
-        await fs.mkdir(targetDir, { recursive: true });
+        
         sails.log.verbose(`PDFService::Printing PDF for ${oid}`);
-        const fpath = `${sails.config.record.attachments.stageDir}/${fileId}`;
 
-        // Save the pdf file
-        let defaultPDFOptions: any = {
-          path: fpath,
+        let pdfOptions = this.getOption(brand, options, 'PDFOptions') || {};
+        // We don't want the file path to be overriden since we will get a buffer
+        delete pdfOptions['path'];
+
+        const defaultPDFOptions: any = {
           format: 'A4',
-          printBackground: true
+          printBackground: true,
+          ...pdfOptions
         };
         
-        if (this.getOption(brand, options, 'PDFOptions')) {
-          let pdfOptions = this.getOption(brand, options, 'PDFOptions')
-          // We don't want the file path to be overriden
-          delete pdfOptions['path'];
-          defaultPDFOptions = _.merge(defaultPDFOptions, pdfOptions);
-        }
-        await page.pdf(defaultPDFOptions);
-        sails.log.debug(`PDFService::Generated PDF at ${sails.config.record.attachments.stageDir}/${fileId} `);
+        const pdfBuffer = await page.pdf(defaultPDFOptions);
+        sails.log.debug(`PDFService::Generated PDF buffer`);
 
         // Release browser resources
         await page.close();
@@ -166,28 +174,49 @@ export module Services {
 
         // Save the pdf file to the datastream service
         sails.log.verbose(`PDFService::Saving PDF: ${oid}`);
-        let savedPdfResponse = null;
-        if (compatMode) {
-          savedPdfResponse = await datastreamService.addDatastream(oid, fileId);
-        } else {
-          const datastream = new Datastream({ fileId: fileId, name: fileId });
-          savedPdfResponse = await datastreamService.addDatastream(oid, datastream);
-        }
-        sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
-        _.unset(this.processMap[currentURL]);
+        const stagingDisk = StorageManagerService.stagingDisk();
+        await stagingDisk.put(fileId, pdfBuffer);
 
-      } catch (e) {
+        const datastream = new Datastream({ fileId: fileId, name: fileId });
+        await DatastreamService.addDatastream(oid, datastream, stagingDisk);
+        sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
+
+        return { success: true };
+      } catch (e: any) {
+        const errorStack = e.stack || e.message || String(e);
         sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
-        sails.log.error(e);
-        sails.log.error(JSON.stringify(e));
+        sails.log.error(`Context: brand=${brand.name}, oid=${oid}, url=${currentURL}, attempt=${attempt}`);
+        sails.log.error(errorStack);
+        
         try {
           if (browser) {
             await browser.close();
           }
-        } catch (e) {
-          sails.log.error(`PDFService::Failed to close browser after error`);
-          sails.log.error(e);
+        } catch (err: any) {
+          sails.log.error(`PDFService::Failed to close browser after error: ${err.message}`);
         }
+
+        const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
+        // Basic check for transient failures vs non-retryable
+        const isTransient = true; // In Puppeteer most errors like navigation timeout are transient
+        if (isTransient && attempt <= maxRetries) {
+          const retryDelay = this.getOption(brand, options, 'retryDelayMs', 5000);
+          const backoff = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
+          const delay = retryDelay * Math.pow(backoff, attempt - 1);
+          
+          sails.log.warn(`PDFService::Scheduling retry ${attempt} of ${maxRetries} for ${oid} in ${delay}ms`);
+          setTimeout(() => {
+            this.generatePDF(oid, record, options, attempt + 1).catch(err => {
+              sails.log.error(`PDFService::Retry failed for ${oid}: ${err.message}`);
+            });
+          }, delay);
+          
+          return { success: false, reason: e, retryScheduled: true };
+        } else {
+          sails.log.error(`PDFService::Max retries exhausted for ${oid} or non-retryable error.`);
+          return { success: false, reason: e, retryScheduled: false };
+        }
+
       } finally {
         // clean up in case browser didn't close properly
         if (browser && browser.process() != null) {
@@ -196,17 +225,19 @@ export module Services {
         if (tmpUserDataDir) {
           await fs.rm(tmpUserDataDir, { recursive: true, force: true });
         }
+        if (currentURL) {
+          this.processMap.delete(currentURL);
+        }
       }
-      return record;
     }
 
-    private getBranding(record) {
+    private getBranding(record: any) {
       return BrandingService.getBrandById(record.metaMetadata.brandId)
     }
 
-    private getOption(branding, option, key, defaultValue = undefined) {
+    private getOption(branding: any, option: any, key: string, defaultValue: any = undefined) {
       let value = sails.config.brandingAware(branding.name).pdfgen[key];
-      if (option[key] !== undefined) {
+      if (option && option[key] !== undefined) {
         value = option[key];
       }
       if (value === undefined) {
@@ -216,14 +247,16 @@ export module Services {
     }
 
 
-    public createPDF(oid, record, options, user) {
-      return from(this.generatePDF(oid, record, options));
-    }
-
-    private delay(time) {
-      return new Promise(function (resolve) {
-        setTimeout(resolve, time)
+    public createPDF(oid: string, record: any, options: any, user: any) {
+      // Return the observable so the workflow doesn't block on failures/retries
+      // We wrap it in a try/catch promise to resolve with the record always
+      const promise = this.generatePDF(oid, record, options).then(result => {
+        if (!result.success) {
+           sails.log.warn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: ${result.retryScheduled}`);
+        }
+        return record;
       });
+      return from(promise);
     }
   }
 }

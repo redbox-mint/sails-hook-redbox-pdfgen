@@ -55,14 +55,33 @@ RUN cd <source-path-in-container> \
 The service is designed to run using the record post-save trigger functionality.
 It has the following options:
 
+### `readinessStrategy`
+
+Required: no
+
+Default: `networkIdle`
+
+The strategy used to determine if the page is ready for PDF generation. Valid options are:
+- `networkIdle`: Waits for network requests to settle (`networkIdleTime` can be configured, defaults to 2000ms).
+- `selector`: Waits for a specific CSS selector to appear (`waitForSelector` is required).
+- `jsFlag`: Waits for a JavaScript function to return true (`waitForFunction` is required).
+- `networkIdle+selector`: Waits for network requests to settle, then waits for a CSS selector.
+
 ### `waitForSelector`
 
-Required: yes
+Required: if `readinessStrategy` is `selector` or `networkIdle+selector`
 
 A [css selector](https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagewaitforselectorselector-options) that puppeteer will wait for before generating the PDF. 
-Usually this is when the angular app has finished initialising and the selector "div#loading.hidden" will be satisfactory.
-If you have components that make AJAX calls after initialisation that you need to wait on then you may need to use a different selector.
 
+### `waitForFunction`
+
+Required: if `readinessStrategy` is `jsFlag`
+
+A JavaScript expression that puppeteer will evaluate in the page context. It waits until the expression returns a truthy value before generating the PDF.
+
+### `maxRetries`, `retryDelayMs`, `retryBackoffMultiplier`
+
+Configurable retry policy for best-effort PDF generation on transient failures. Defaults: 2 retries, 5000ms delay, 2x backoff multiplier.
 
 ### `pdf-prefix`
 

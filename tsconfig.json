@@ -1,10 +1,10 @@
 {
     "compilerOptions": {
-        "target": "es6",
+        "target": "es2020",
         "module": "commonjs",
         "moduleResolution": "node",
         "isolatedModules": false,
-        "jsx": "react",
+        "strict": true,
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
         "declaration": false,
