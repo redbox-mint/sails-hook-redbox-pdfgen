@@ -23,6 +23,7 @@ services:
       /bin/bash -c "
       cd /opt/sails-hook-redbox-pdfgen &&
       npm install -g @usebruno/cli &&
+      mkdir -p /opt/sails-hook-redbox-pdfgen/support/.tmp/junit/backend-bruno &&
       cd /opt/sails-hook-redbox-pdfgen/test/bruno &&
       bru run
       --env test

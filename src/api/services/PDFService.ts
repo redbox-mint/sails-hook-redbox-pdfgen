@@ -4,17 +4,16 @@ import { Sails, Model } from "sails";
 import { launch } from 'puppeteer';
 import { DateTime } from 'luxon';
 import * as fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'path';
+import {
+  Services as services,
+  Datastream,
+  DatastreamService
+} from '@researchdatabox/redbox-core';
+import type { PdfgenConfig } from '../../config/pdfgen';
 
-import { Services as service, Datastream } from '@researchdatabox/redbox-core-types';
-
-declare var sails: Sails;
-declare var RecordType: Model;
-declare var _this: any;
-declare var _: any;
-declare var User: any;
-declare var BrandingService: any;
 
 export namespace Services {
   /**
@@ -23,13 +22,24 @@ export namespace Services {
    * Author: <a href='https://github.com/shilob' target='_blank'>Shilo Banihit</a>
    *
    */
-  export class PDF extends service.Core.Service {
+  export class PDF extends services.Core.Service {
 
     private processMap: Map<string, boolean> = new Map<string, boolean>();
-
+    private DatastreamService!: DatastreamService;
     protected _exportedMethods: any = [
       'createPDF',
+      'init'
     ];
+
+    public init() {
+      this.registerSailsHook('after', ['hook:redbox:storage:ready', 'hook:redbox:datastream:ready', 'ready'], () => {
+        const datastreamServiceName = sails.config.record.datastreamService;
+        sails.log.verbose(`PDFService Webservice ready, using datastream service: ${datastreamServiceName}`);
+        if (datastreamServiceName != undefined) {
+          this.DatastreamService = sails.services[datastreamServiceName] as unknown as DatastreamService;
+        }
+      });
+    }
 
     private async waitForPageReady(page: any, brand: any, options: any): Promise<void> {
       const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
@@ -77,14 +87,7 @@ export namespace Services {
 
       const brand = this.getBranding(record);
       
-      const StorageManagerService = sails.services['storagemanagerservice'];
-      const DatastreamService = sails.services['standarddatastreamservice'];
 
-      if (!StorageManagerService || !DatastreamService) {
-        const msg = `PDFService::Required services missing: storagemanagerservice or standarddatastreamservice. Ensure ReDBox core-types version is compatible.`;
-        sails.log.error(msg);
-        return { success: false, reason: msg, retryScheduled: false };
-      }
 
       // Check that the token is provided
       let token = this.getOption(brand, options, 'token');
@@ -102,9 +105,15 @@ export namespace Services {
         sails.log.verbose(`PDFService::Launching browser....`);
         // Ensure the user data dir is new each run so that the browser is completely clean
         tmpUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdfgen'));
-        // Use the default executablePath with the 'chrome-headless-shell' headless mode
-        // https://pptr.dev/guides/headless-modes/
-        browser = await launch({ headless: 'shell', args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
+        // Prefer host-installed Chromium/Chrome where available to avoid architecture mismatches.
+        const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
+          || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable'].find(candidate => existsSync(candidate));
+
+        browser = await launch({
+          headless: true,
+          executablePath,
+          args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`]
+        });
 
         // Create a browser page
         sails.log.verbose(`PDFService::Creating new page....`)
@@ -139,9 +148,6 @@ export namespace Services {
         this.processMap.set(currentURL, true);
         sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
 
-        const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
-        const isNetworkIdleFirst = strategy === 'networkIdle' || strategy === 'networkIdle+selector';
-        
         await page.goto(currentURL, { waitUntil: 'domcontentloaded' });
 
         await this.waitForPageReady(page, brand, options);
@@ -178,7 +184,7 @@ export namespace Services {
         await stagingDisk.put(fileId, pdfBuffer);
 
         const datastream = new Datastream({ fileId: fileId, name: fileId });
-        await DatastreamService.addDatastream(oid, datastream, stagingDisk);
+        await this.DatastreamService.addDatastream(oid, datastream, stagingDisk);
         sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
 
         return { success: true };
@@ -235,8 +241,11 @@ export namespace Services {
       return BrandingService.getBrandById(record.metaMetadata.brandId)
     }
 
-    private getOption(branding: any, option: any, key: string, defaultValue: any = undefined) {
-      let value = sails.config.brandingAware(branding.name).pdfgen[key];
+    private getOption(branding: any, option: any, key: keyof PdfgenConfig | string, defaultValue: any = undefined) {
+      const brandingConfig = sails.config.brandingAware(branding.name) as unknown as Record<string, unknown> & {
+        pdfgen?: Record<string, unknown>;
+      };
+      let value = brandingConfig.pdfgen?.[key];
       if (option && option[key] !== undefined) {
         value = option[key];
       }
@@ -260,4 +269,3 @@ export namespace Services {
     }
   }
 }
-module.exports = new Services.PDF().exports();

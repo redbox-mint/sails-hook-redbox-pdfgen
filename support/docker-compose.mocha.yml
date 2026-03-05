@@ -24,4 +24,4 @@ services:
       /bin/bash -c "
       cd /opt/sails-hook-redbox-pdfgen &&
       npm install &&
-      node_modules/.bin/mocha"
+      node_modules/.bin/mocha 'test/mocha/**/*.spec.mjs'"

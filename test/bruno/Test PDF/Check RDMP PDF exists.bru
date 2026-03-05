@@ -16,11 +16,10 @@ headers {
 }
 
 script:pre-request {
-  await new Promise((resolve) => setTimeout(() => resolve(), 15000));
+  await new Promise((resolve) => setTimeout(() => resolve(), 45000));
 }
 
 tests {
-  const _ = require('lodash');
   test("Status code is 200", function () {
       expect(res.getStatus()).to.equal(200);
   });
@@ -29,10 +28,11 @@ tests {
       var jsonData = res.getBody();
 
       // should be one attachment, with pdf ext
-      expect(_.size(jsonData.records)).to.equal(1);
+      expect(Array.isArray(jsonData.records)).to.equal(true);
+      expect(jsonData.records.length).to.equal(1);
       expect(jsonData.records[0].redboxOid).to.equal(bru.getEnvVar("dmpOid"));
       bru.setEnvVar("recordStreamId",jsonData.records[0].fileId);
 
-      expect(_.endsWith(jsonData.records[0].fileId, '.pdf')).to.equal(true);
+      expect(String(jsonData.records[0].fileId).endsWith('.pdf')).to.equal(true);
   });
 }

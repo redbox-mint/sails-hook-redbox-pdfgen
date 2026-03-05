@@ -1,5 +1,4 @@
 # compiled output
-/dist
 /dist-server
 /tmp
 /out-tsc
@@ -44,8 +43,8 @@ Thumbs.db
 .circleci/
 support/
 test/
-typescript/
-!typescript/api/configmodels/PDFGenConfig.ts
+src/
+!src/api/configmodels/PDFGenConfig.ts
 .dockerignore
 .editorconfig
 .gitignore

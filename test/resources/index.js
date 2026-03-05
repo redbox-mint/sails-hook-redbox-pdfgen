@@ -1,47 +1,57 @@
 const _ = require('lodash');
-var configService = require('../../../api/services/ConfigService.js');
 
 module.exports = function (sails) {
   return {
     initialize: function (cb) {
-      sails.log.verbose('PDF SERVICE INITIALISING');
-      // Do Some initialisation tasks
-      let PDFService = null;
-      if (!_.isEmpty(configService) && _.isFunction(configService.mergeHookConfig)) {
-        configService.mergeHookConfig('@researchdatabox/sails-hook-redbox-pdfgen', sails.config);
-        PDFService = sails.services['pdfservice'];
+      if (sails.services && sails.services.configservice) {
+        sails.services.configservice.mergeHookConfig(
+          '@researchdatabox/sails-hook-redbox-pdfgen', sails.config
+        );
       } else {
-        sails.log.warn("Warning PDF Plugin in compatibility mode.");
-        PDFService = require('./api/services/PDFService');
-        sails.services['pdfservice'] = PDFService;
+        sails.log.warn('sails-hook-redbox-pdfgen: ConfigService not available, skipping service loading');
       }
 
-
-            sails.log.verbose(PDFService);
       _.set(sails, 'config.brandingConfigurationDefaults.pdfgen', {
-        token: sails.config.auth.default.local.default.token
+        token: _.get(sails, 'config.auth.default.local.default.token')
       });
-      sails.after('hook:moduleloader:loaded', async () => {
+
+      sails.after('hook:moduleloader:loaded', () => {
         try {
-          const { PDFGenConfig } = require('./api/configmodels/PDFGenConfig');
-          sails.log.error('sails.services')
-          sails.log.error(sails.services.appconfigservice)
-          sails.services.appconfigservice.registerConfigModel(
-            {key: 'pdfgen', model: PDFService, modelName: 'PDFGenConfig', title: 'PDF Generation Config', class: PDFGenConfig, tsGlob: __dirname + '/typescript/api/configmodels/*.ts'}
-          );
-          return cb(); 
+          const PDFService = sails.services['pdfservice'];
+          const { PDFGenConfig } = require('./dist/api/configmodels/PDFGenConfig');
+          if (sails.services.appconfigservice) {
+            sails.services.appconfigservice.registerConfigModel({
+              key: 'pdfgen',
+              model: PDFService,
+              modelName: 'PDFGenConfig',
+              title: 'PDF Generation Config',
+              class: PDFGenConfig,
+              tsGlob: __dirname + '/src/api/configmodels/*.ts'
+            });
+          }
         } catch (e) {
-          sails.log.error('sails-hook-redbox-pdfgen init failed:', e);
-          return cb(e);
+          sails.log.error('sails-hook-redbox-pdfgen: Failed to register config model:', e);
         }
       });
+
+      return cb();
     },
-    //If each route middleware do not exist sails.lift will fail during hook.load()
-    routes: {
-      before: {},
-      after: {}
-    },
-    configure: function () {
-    }
+    routes: { before: {}, after: {} },
+    configure: function () {},
+    defaults: {}
   }
 };
+
+module.exports.registerRedboxConfig = function () {
+  return {
+    pdfgen: require('./dist/config/pdfgen').pdfgen,
+    agendaQueue: require('./config/agendaQueue').agendaQueue,
+    recordtype: require('./config/rdmp-recordtype').recordtype
+  };
+};
+
+module.exports.registerRedboxServices = function () {
+  return require('./dist/api/services').ServiceExports;
+};
+
+module.exports.ServiceExports = require('./dist/api/services').ServiceExports;

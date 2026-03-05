@@ -53,15 +53,10 @@ describe('PDFService Unit Tests', () => {
 
         global._ = require('lodash');
 
-        // The module exports the object returned by .exports(), but the module definition also defines Services
-        // The file overwrites module.exports but the module still holds 'exports' reference.
-        // But since module.exports is overwritten we can't get to exports.Services unless we trick require.
-        // A cleaner way is to mock generatePDF locally, or just extract the inner class by reading the code.
-        // However, since it's just a test, we can use proxyquire or similar if needed.
-        // Actually, we can get the class from the global scope if it pollutes it, or we can use the `Services` namespace.
+        // Compile output keeps the Services namespace on exports for direct construction in tests.
         const fs = require('fs');
         const vm = require('vm');
-        const code = fs.readFileSync(__dirname + '/../../../../api/services/PDFService.js', 'utf8');
+        const code = fs.readFileSync(__dirname + '/../../../../dist/api/services/PDFService.js', 'utf8');
         const sandbox = { ...global, exports: {}, module: {}, require: require, sails: global.sails, Buffer: Buffer, setTimeout: setTimeout, clearTimeout: clearTimeout };
         vm.createContext(sandbox);
         vm.runInContext(code, sandbox);
