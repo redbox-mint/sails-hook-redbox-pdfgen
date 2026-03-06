@@ -45,10 +45,12 @@ jobs:
           command: |
             sudo chmod -R 'u=rwx,g=rwx,o=rwx' /home/circleci/project
       - run:
-          name: Run Bruno and Mocha tests
+          name: Run Unit, Bruno and Mocha tests
           command: |
-            npm run test:bruno:docker
-            npm run test:bruno:docker:clean
+            npm run test:unit
+            npm run test:mocha
+            npm run test:bruno
+            
 
 # TODO: get the mocha / puppeteer tests working
 #npm run test:mocha:docker

@@ -12,20 +12,19 @@
     "precompile": "npm run clean",
     "compile": "./node_modules/typescript/bin/tsc -p tsconfig.json",
     "prepack": "npm run compile",
-    "test": "npm run test:mocha:docker",
+    "test": "npm run test:unit && npm run test:mocha:clean && npm run test:mocha && npm run test:bruno:clean && npm run test:bruno",
     "pretest": "npm install --ignore-scripts && npm run compile",
     "compile:tsc": "./node_modules/typescript/bin/tsc",
-    "test:unit": "npm run compile && npx mocha --require tsx/cjs \"test/unit/**/*.spec.ts\"",
+    "build": "npm run compile:tsc",
     "dev:host": "./support/prepare-host.sh",
     "dev:host:clean": "sudo rm -rf ./support/.tmp && docker volume prune -af",
-    "dev:docker": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f ./support/docker-compose.yml up --remove-orphans",
+    "dev:run": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f ./support/docker-compose.yml up --remove-orphans",
     "dev:docker:clean": "docker compose -f ./support/docker-compose.yml down",
-    "test:mocha:docker": "RBPORTAL_NODE_ENV=test docker compose -f ./support/docker-compose.mocha.yml up --build --abort-on-container-exit --exit-code-from mocha",
-    "test:mocha:docker:clean": "docker compose -f ./support/docker-compose.mocha.yml down",
-    "test:bruno:docker": "RBPORTAL_NODE_ENV=test docker compose -f ./support/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
-    "test:bruno:docker:clean": "docker compose -f ./support/docker-compose.bruno.yml down",
-    "test:docker:clean": "npm run test:mocha:docker:clean; npm run test:bruno:docker:clean",
-    "dev:run": "docker compose -f support/docker-compose.yml up"
+    "test:unit": "npm run compile && npx mocha --require tsx/cjs \"test/unit/**/*.spec.ts\"",
+    "test:mocha": "RBPORTAL_NODE_ENV=test docker compose -f ./support/docker-compose.mocha.yml up --build --abort-on-container-exit --exit-code-from mocha",
+    "test:mocha:clean": "docker compose -f ./support/docker-compose.mocha.yml down",
+    "test:bruno": "RBPORTAL_NODE_ENV=test docker compose -f ./support/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
+    "test:bruno:clean": "docker compose -f ./support/docker-compose.bruno.yml down"
   },
   "repository": {
     "type": "git",
@@ -50,10 +49,10 @@
     "stream": "^0.0.3",
     "supertest": "^6.3.4",
     "ts-node": "^10.9.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+     "@researchdatabox/redbox-core": "file:../redbox-portal/packages/redbox-core"
   },
   "dependencies": {
-    "@researchdatabox/redbox-core": "file:../redbox-portal/packages/redbox-core",
     "effect": "^3.19.19",
     "lodash": "^4.17.21",
     "puppeteer": "^22.15.0",
