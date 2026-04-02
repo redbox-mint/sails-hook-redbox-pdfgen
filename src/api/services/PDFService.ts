@@ -181,7 +181,7 @@ export namespace Services {
             page.on('console', (msg: any) => {
               sails.log.verbose(`PDFService::Chrome Console:${msg.text()}`);
             });
-            page.on('pageerror', (error: Error) => {
+            page.on('pageerror', (error: any) => {
               sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
             });
             page.on('response', (response: any) => {
@@ -334,16 +334,16 @@ export namespace Services {
         Effect.catchAll((error: PDFError) => {
           if (this.isRetryable(error)) {
             return Effect.gen(this, function* () {
-              yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true`);
+              yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true. Error: ${error?.name} - ${error?.message}`);
               yield* Effect.forkDaemon(runBackgroundRetries(maxRetries, 2));
             });
           }
 
           if (error._tag === 'MissingTokenError') {
-            return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false`);
+            return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false. Error: ${error?.name} - ${error?.message}`);
           }
 
-          return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false`);
+          return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false. Error: ${error?.name} - ${error?.message}`);
         }),
         Effect.as(record),
         Effect.withSpan('createPDF', { attributes: { oid, brand: brand.name } })
