@@ -9,11 +9,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "precompile": "npm run clean",
-    "compile": "./node_modules/typescript/bin/tsc -p tsconfig.json",
-    "prepack": "npm run compile",
-    "test": "npm run test:unit && npm run test:mocha:clean && npm run test:mocha && npm run test:bruno:clean && npm run test:bruno",
-    "pretest": "npm install --ignore-scripts && npm run compile",
+    "compile": "npm run clean && ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test": "npm install --ignore-scripts && npm run compile && npm run test:unit && npm run test:mocha:clean && npm run test:mocha && npm run test:bruno:clean && npm run test:bruno",
     "compile:tsc": "./node_modules/typescript/bin/tsc",
     "build": "npm run compile:tsc",
     "dev:host": "./support/prepare-host.sh",
