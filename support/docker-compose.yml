@@ -3,7 +3,7 @@ networks:
 
 services:
   minio:
-    image: "quay.io/minio/minio:RELEASE.2024-07-29T22-14-52Z"
+    image: "quay.io/minio/minio:latest"
     command: 'server /data --console-address ":9002"'
     expose:
       - "9000"
@@ -90,7 +90,7 @@ services:
       node --inspect=0.0.0.0:9876 --enable-source-maps app.js"
 
   mongodb:
-    image: "mongo:6"
+    image: "mongo:latest"
     expose:
       - "27017"
     ports:
@@ -109,7 +109,7 @@ services:
           - "mongodb"
 
   solr:
-    image: "solr:8.11.1"
+    image: "solr:latest"
     expose:
       - "8983"
     ports:
