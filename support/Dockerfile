@@ -1,4 +1,4 @@
-FROM qcifengineering/redbox-portal:feature-ng19-forms AS runtime-base
+FROM qcifengineering/redbox-portal:develop AS runtime-base
 
 # This Dockerfile is for dev and testing only.
 USER root
