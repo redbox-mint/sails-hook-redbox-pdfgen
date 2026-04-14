@@ -4,7 +4,7 @@ jobs:
   build:
     docker:
       # docker image version must match version in .nvmrc
-      - image: cimg/node:20.15.0
+      - image: 'cimg/node:24.14.1'
     steps:
       - checkout
       - restore_cache:
@@ -59,7 +59,7 @@ jobs:
   publish:
     docker:
       # docker image version must match version in .nvmrc
-      - image: cimg/node:20.15.0
+      - image: 'cimg/node:24.14.1'
     steps:
       - checkout
       - restore_cache:
