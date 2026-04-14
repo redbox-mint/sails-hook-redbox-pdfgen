@@ -29,7 +29,7 @@ jobs:
 
   test:
     machine:
-      image: ubuntu-2004:current
+      image: ubuntu-2204:current
     resource_class: large
     environment:
       BUILDKIT_PROGRESS: 'plain'
