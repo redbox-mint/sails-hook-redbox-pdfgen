@@ -1,63 +1,20 @@
-import { expect } from 'chai';
-import { Effect } from 'effect';
-import { createRequire } from 'node:module';
-import * as sinon from 'sinon';
-
-declare var global: any;
-
-const require = createRequire(import.meta.url);
+const { Effect } = require('effect');
+const sinon = require('sinon');
+const { expect } = require('@researchdatabox/redbox-dev-tools/testing');
+const { clearPdfgenTestGlobals, installPdfgenTestGlobals } = require('../support/globals');
 
 describe('PDFService Unit Tests', () => {
     let pdfService: any;
     let mockPage: any;
     let mockBrowser: any;
-    let storageDiskPutStub: sinon.SinonStub;
-    let addDatastreamStub: sinon.SinonStub;
+    let storageDiskPutStub: any;
+    let addDatastreamStub: any;
 
     beforeEach(function () {
         this.timeout(10000);
-        storageDiskPutStub = sinon.stub().resolves();
-        addDatastreamStub = sinon.stub().resolves({});
-
-        global.sails = {
-            log: {
-                verbose: sinon.stub(),
-                debug: sinon.stub(),
-                info: sinon.stub(),
-                warn: sinon.stub(),
-                error: sinon.stub()
-            },
-            services: {
-                storagemanagerservice: {
-                    stagingDisk: () => ({
-                        put: storageDiskPutStub
-                    })
-                },
-                standarddatastreamservice: {
-                    addDatastream: addDatastreamStub
-                }
-            },
-            config: {
-                appUrl: 'http://localhost:1500',
-                brandingAware: () => ({
-                    pdfgen: {
-                        token: 'test-token'
-                    }
-                }),
-                record: {
-                    datastreamService: 'standarddatastreamservice',
-                    attachments: {
-                        stageDir: '/tmp'
-                    }
-                }
-            }
-        };
-
-        global.BrandingService = {
-            getBrandById: sinon.stub().returns({ name: 'default' })
-        };
-        global.StorageManagerService = global.sails.services.storagemanagerservice;
-        global._ = require('lodash');
+        installPdfgenTestGlobals();
+        storageDiskPutStub = global.sails.services.storagemanagerservice.stagingDisk().put;
+        addDatastreamStub = global.sails.services.standarddatastreamservice.addDatastream;
 
         const compiledServicePath = require.resolve('../../dist/api/services/PDFService.js');
         delete require.cache[compiledServicePath];
@@ -88,6 +45,7 @@ describe('PDFService Unit Tests', () => {
 
     afterEach(() => {
         sinon.restore();
+        clearPdfgenTestGlobals();
     });
 
     it('should fail fast if required services are missing', async () => {

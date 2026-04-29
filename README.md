@@ -211,28 +211,54 @@ module.exports.recordtype = {
 
 ## Development
 
+This hook uses the shared ReDBox hook toolchain:
+
+- `@researchdatabox/redbox-core` is the host runtime and compatibility contract.
+- `@researchdatabox/redbox-dev-tools` provides the shared TypeScript and Mocha runners.
+- Runtime dependencies owned by this hook stay in `dependencies`; shared ReDBox and test tooling should not be duplicated here.
+
+The modern shared packages are currently resolved from the sibling `../redbox-portal/packages/*` checkout for local authoring. Public consumers still receive `@researchdatabox/redbox-core` through the peer dependency contract when installing the published hook.
+
 ```bash
-# This will build the npm package for `sails-hook-redbox-pdfgen` and install it into the `rbportal`.
-# To start a redbox instance for local development:
-./runForDev.sh
-
-# After making code changes:
-npm run dev:docker:clean
-
-
-# To run tests, then clean up the test docker compose resources:
-npm install
+npm install --ignore-scripts
+npm run compile
 npm run dev:host
+npm run dev:run
+```
 
-npm run test:bruno:docker
-npm run test:bruno:docker:clean
+Clean up the development stack:
 
-# npm run test:mocha:docker
-# npm run test:mocha:docker:clean
-
-npm run test:docker:clean
-
-
-# To remove the database contents and all generated and cached files:
+```bash
+npm run dev:docker:clean
 npm run dev:host:clean
+```
+
+## Testing
+
+The default test gate compiles the hook, runs unit tests, and runs the Mocha integration suite inside a lifted ReDBox portal:
+
+```bash
+npm test
+```
+
+Run the suites individually:
+
+```bash
+npm run compile
+npm run test:unit
+npm run test:integration:mocha
+npm run test:integration:mocha:clean
+```
+
+The Bruno API suite is an explicit acceptance check rather than part of `npm test`:
+
+```bash
+npm run test:bruno
+npm run test:bruno:clean
+```
+
+Before publishing, verify the npm artifact:
+
+```bash
+npm pack --dry-run
 ```

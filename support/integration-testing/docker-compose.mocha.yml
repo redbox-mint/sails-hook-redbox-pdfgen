@@ -1,0 +1,138 @@
+networks:
+  main:
+
+x-rbportal-env: &rbportal-env
+  - NODE_ENV=integrationtest
+  - NODE_PATH=/opt/redbox-portal/node_modules:/opt/redbox-portal/node_modules/@researchdatabox/redbox-core/node_modules
+  - PORT=1500
+  - sails_appUrl=http://redboxportal:1500
+  - sails_log__level=verbose
+  - sails_hooks__sockets=false
+  - sails_datastores__mongodb__url=mongodb://mongodb:27017/redbox-portal
+  - sails_redbox__apiKey=c8e844fc-8550-497f-b970-7900ec8741ca
+  - sails_admin__api_token=6b088b4d-d54c-470c-8568-2f2695fcdab9
+  - sails_brandingConfigurationDefaults__auth__local__default__token=6b088b4d-d54c-470c-8568-2f2695fcdab9
+  - sails_auth__default__local__default__token=6b088b4d-d54c-470c-8568-2f2695fcdab9
+  - sails_brandingConfigurationDefaults__pdfgen__token=6b088b4d-d54c-470c-8568-2f2695fcdab9
+  - sails_auth__default__local_pdfbot_token=6b088b4d-d54c-470c-8568-2f2695fcdab9
+  - sails_session__secret=pdfgen-integration-session-secret
+  - sails_record__baseUrl__mint=https://demo.redboxresearchdata.com.au/mint
+  - sails_redbox__mochaTesting=true
+  - sails_security__csrf=false
+  - LOAD_DEFAULT_FORMS=true
+  - HOOK_S3_ACCESS_KEY=minioadmin
+  - HOOK_S3_SECRET_KEY=minioadmin
+  - HOOK_S3_REGION=ap-southeast-2
+  - HOOK_S3_BUCKET=attachments
+  - HOOK_S3_ENDPOINT=http://minio:9000
+  - PUPPETEER_CACHE_DIR=/opt/browsers
+  - PUPPETEER_SKIP_DOWNLOAD=true
+  - CI=${CI:-false}
+  - RBPORTAL_COVERAGE_DIR=/tmp/coverage/mocha
+  - RBPORTAL_TEST_HOST=redboxportal
+  - RBPORTAL_REDBOX_CORE_VERSION=${RBPORTAL_REDBOX_CORE_VERSION:-0.0.0-bootstrap.0}
+  - RBPORTAL_EXTRA_NODE_MODULES=/opt/redbox-integration-node_modules/node_modules
+
+x-rbportal-depends: &rbportal-depends
+  minio:
+    condition: service_healthy
+  mongodb:
+    condition: service_healthy
+  solr:
+    condition: service_healthy
+
+services:
+  redboxportal:
+    build:
+      context: ../../
+      dockerfile: ./support/Dockerfile
+    volumes:
+      - "../../:/opt/redbox-portal/node_modules/@researchdatabox/sails-hook-redbox-pdfgen:delegated"
+      - "../../test:/opt/redbox-portal/test/hook-pdfgen:ro"
+      - "../../test/resources/config:/opt/pdfgen-test-resources/config:ro"
+      - "../../support/integration-testing:/opt/redbox-portal/node_modules/@researchdatabox/sails-hook-redbox-pdfgen/support/integration-testing:ro"
+      - "../../support/.tmp/sailsWorkingDir/tmp:/opt/redbox-portal/.tmp"
+      - "../../support/.tmp/attachments:/attachments"
+      - "../../coverage/mocha:/tmp/coverage/mocha"
+      - "../../support/.tmp/junit/backend-mocha:/opt/redbox-portal/.tmp/junit/backend-mocha"
+    depends_on: *rbportal-depends
+    expose:
+      - "1500"
+      - "9876"
+    environment: *rbportal-env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:1500/default/rdmp/home"]
+      interval: "10s"
+      timeout: "5s"
+      retries: 10
+      start_period: "60s"
+    networks:
+      main:
+        aliases:
+          - redboxportal
+    init: true
+    entrypoint:
+      - bash
+      - /opt/redbox-portal/node_modules/@researchdatabox/sails-hook-redbox-pdfgen/support/integration-testing/run-mocha-hook.sh
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: 'server /data --console-address ":9002"'
+    expose:
+      - "9000"
+      - "9002"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - "../../support/.tmp/minio-data:/data"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9000'"]
+      interval: "5s"
+      timeout: "5s"
+      retries: 10
+      start_period: "20s"
+    networks:
+      main:
+        aliases:
+          - minio
+
+  mongodb:
+    image: mongo:latest
+    expose:
+      - "27017"
+    volumes:
+      - "../../support/.tmp/mongo:/data/db"
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'db.runCommand(\"ping\").ok' | mongosh"]
+      interval: "10s"
+      timeout: "5s"
+      retries: 10
+      start_period: "30s"
+    networks:
+      main:
+        aliases:
+          - mongodb
+
+  solr:
+    image: solr:latest
+    expose:
+      - "8983"
+    environment:
+      - SOLR_HOME=/var/solr/data
+    volumes:
+      - "../../support/.tmp/solr:/var/solr/data"
+    healthcheck:
+      test: ["CMD-SHELL", "curl http://localhost:8983"]
+      interval: "10s"
+      timeout: "5s"
+      retries: 10
+      start_period: "30s"
+    networks:
+      main:
+        aliases:
+          - solr
+    entrypoint:
+      - docker-entrypoint.sh
+      - solr-precreate
+      - redbox

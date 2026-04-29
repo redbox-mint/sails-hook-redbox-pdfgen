@@ -60,5 +60,5 @@ sudo mkdir -p "${JUNIT_DIR}/backend-bruno"
 sudo chown -R "${DOCKER_UID}:${DOCKER_GID}" "${JUNIT_DIR}"
 setupDone "${JUNIT_DIR}"
 
-# Compile the typescript.
-npm run compile:tsc
+# Compile the TypeScript output used by the local Docker portal.
+npm run compile

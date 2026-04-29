@@ -17,7 +17,7 @@ jobs:
           command: npm ci
       - run:
           name: Compile the typescript
-          command: npm run compile:tsc
+          command: npm run compile
       - save_cache:
           key: v1-node-{{ .Branch }}-{{ checksum "package-lock.json" }}
           paths:
@@ -45,16 +45,14 @@ jobs:
           command: |
             sudo chmod -R 'u=rwx,g=rwx,o=rwx' /home/circleci/project
       - run:
-          name: Run Unit, Bruno and Mocha tests
+          name: Run unit and Mocha integration tests
           command: |
             npm run test:unit
-            npm run test:mocha
-            npm run test:bruno
-            
-
-# TODO: get the mocha / puppeteer tests working
-#npm run test:mocha:docker
-#npm run test:mocha:docker:clean
+            npm run test:integration:mocha
+      - run:
+          name: Clean up integration test containers
+          command: npm run test:integration:mocha:clean || true
+          when: always
 
   publish:
     docker:
@@ -72,7 +70,7 @@ jobs:
           command: npm ci
       - run:
           name: Compile the typescript
-          command: npm run compile:tsc
+          command: npm run compile
       - run:
           name: Authenticate with NPM
           command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc

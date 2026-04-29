@@ -22,6 +22,7 @@ Treat this as a hook that is loaded by a host ReDBox portal, not as a standalone
 
 - This hook is part of the ReDBox ecosystem and must integrate with ReDBox service registration patterns.
 - Use `@researchdatabox/redbox-core` for both runtime behavior and shared ReDBox typings.
+- Use `@researchdatabox/redbox-dev-tools` for hook compilation and unit-test execution.
 - ReDBox exposes important singletons globally and through `sails`, especially Services and Models. Before inventing local wrappers, check whether the dependency already exists as:
   - `sails.services.<name>`
   - `sails.models.<name>`
@@ -51,8 +52,8 @@ npm run compile
 Useful scripts:
 
 - `npm run clean`: remove `dist/`
-- `npm run compile`: compile TypeScript from `src/` into `dist/`
-- `npm run build`: direct TypeScript build alias
+- `npm run compile`: compile TypeScript from `src/` into `dist/` through `redbox-dev-tools`
+- `npm run build`: compile alias
 
 ## Local Development
 
@@ -88,6 +89,8 @@ Run the full test sequence:
 npm test
 ```
 
+This default gate runs compile, unit tests, and Mocha integration tests. Bruno remains an explicit API acceptance suite.
+
 Run unit tests only:
 
 ```bash
@@ -97,8 +100,8 @@ npm run test:unit
 Run Mocha integration tests:
 
 ```bash
-npm run test:mocha:clean
-npm run test:mocha
+npm run test:integration:mocha:clean
+npm run test:integration:mocha
 ```
 
 Run Bruno API tests:
@@ -110,9 +113,18 @@ npm run test:bruno
 
 Notes:
 
-- `test:mocha` and `test:bruno` run against Docker Compose environments under `support/`.
+- `test:integration:mocha` runs inside a lifted host portal using `support/integration-testing/docker-compose.mocha.yml`.
+- `test:bruno` runs against the Docker Compose environment under `support/docker-compose.bruno.yml`.
 - If Bruno fails with auth or PDF-generation setup problems, inspect `support/docker-compose.yml`, `support/docker-compose.bruno.yml`, and `test/bruno/environments/test.bru` before changing application code.
 - The current Bruno setup expects the stable Docker hostname `rbportal`.
+
+## Dependency Contract
+
+- Keep `@researchdatabox/redbox-core` in `peerDependencies` as the host compatibility contract.
+- Keep `@researchdatabox/redbox-core` and `@researchdatabox/redbox-dev-tools` in `devDependencies` for local authoring and CI. Until the modern shared packages are published, these may resolve from the sibling `../redbox-portal/packages/*` checkout.
+- Keep only pdfgen-owned runtime packages, such as `effect` and `puppeteer`, in `dependencies`.
+- Do not add direct pins for shared hook toolchain packages such as `typescript`, `ts-node`, `mocha`, or `chai`.
+- The modern shared packages must be available from the configured registry before switching this hook back to registry-based dev dependency versions.
 
 ## Files To Read First
 
@@ -122,7 +134,7 @@ Notes:
 - `src/api/services/PDFService.ts`: main service logic and ReDBox service dependencies
 - `src/config/pdfgen.d.ts`: module augmentation for hook config typing
 - `support/docker-compose.yml`: local dev environment
-- `support/docker-compose.mocha.yml`: Mocha test orchestration
+- `support/integration-testing/docker-compose.mocha.yml`: Mocha test orchestration
 - `support/docker-compose.bruno.yml`: Bruno test orchestration
 
 ## Practical Guidance For Future Agents

@@ -5,9 +5,11 @@ import path from "path";
 import puppeteer from "puppeteer";
 import { expect } from 'chai';
 
-const host = 'support-rbportal-1';
+const host = process.env.RBPORTAL_TEST_HOST || 'redboxportal';
 const port = 1500;
 const tmpDir = path.join(os.tmpdir(), 'pdfgen-mocha');
+const screenshotsDir = process.env.RBPORTAL_SCREENSHOTS_DIR
+  || path.join(process.env.RBPORTAL_HOOK_DIR || process.cwd(), 'support/.tmp/screenshots/mocha');
 
 let browser;
 let tempDataDir;
@@ -34,14 +36,14 @@ async function waitForVisualReadiness(page) {
 }
 
 
-// copy screenshots: docker compose -f support/test/docker-compose.mocha.yml cp mocha:/opt/sails-hook-redbox-pdfgen/test/screenshots ./test/screenshots
+const screenshotPath = (filename) => path.join(screenshotsDir, filename);
 
 describe("Sails hook redbox pdfgen", function () {
 
   const redboxHomeUrl = `http://${host}:${port}`
 
   before(async () => {
-    await fs.ensureDir('test/screenshots');
+    await fs.ensureDir(screenshotsDir);
     tempDataDir = await fs.mkdtemp(tmpDir);
     const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
       || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable'].find(candidate => fs.existsSync(candidate));
@@ -68,7 +70,7 @@ describe("Sails hook redbox pdfgen", function () {
     await page.goto(redboxHomeUrl, { waitUntil: 'networkidle2' });
     await waitForVisualReadiness(page);
 
-    await page.screenshot({path: 'test/screenshots/01-home-load.png'});
+    await page.screenshot({path: screenshotPath('01-home-load.png')});
     expect(page.url()).to.equal(`http://${host}:${port}/default/rdmp/home`);
 
     // set page size
@@ -77,11 +79,11 @@ describe("Sails hook redbox pdfgen", function () {
     console.info("navigate to login page");
     await page.goto(`http://${host}:${port}/default/rdmp/user/login`, { waitUntil: 'networkidle2' });
     await waitForVisualReadiness(page);
-    await page.screenshot({path: 'test/screenshots/02-load-login.png'});
+    await page.screenshot({path: screenshotPath('02-load-login.png')});
     expect(page.url()).to.equal(`http://${host}:${port}/default/rdmp/user/login`);
 
     // Smoke-check login page availability on the current portal build.
-    await page.screenshot({path: 'test/screenshots/03-login-page.png'});
+    await page.screenshot({path: screenshotPath('03-login-page.png')});
     expect(page.url()).to.not.equal('chrome-error://chromewebdata/');
 
   }).timeout(30000);

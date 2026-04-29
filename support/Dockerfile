@@ -10,7 +10,7 @@ ENV LANG=en_US.UTF-8
 # google-chrome-stable is only published for amd64; use distro chromium elsewhere.
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends wget gnupg ca-certificates fonts-freefont-ttf libxss1; \
+    apt-get install -y --no-install-recommends wget git gnupg ca-certificates fonts-freefont-ttf libxss1; \
     if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
       install -m 0755 -d /etc/apt/keyrings; \
       wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg; \
@@ -34,27 +34,12 @@ RUN set -eux; \
     wget --quiet --show-progress -O /usr/local/bin/minio-client "https://dl.min.io/client/mc/release/linux-${MC_ARCH}/mc"; \
     chmod +x /usr/local/bin/minio-client
 
-RUN mkdir -p /opt/browsers \
-    && chown node:node /opt/browsers
-
-FROM runtime-base AS deps
-
-COPY --chown=node:node package*.json /opt/sails-hook-redbox-pdfgen/
-
-USER node
-
-ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
-ENV PATH=$PATH:/home/node/.npm-global/bin
-ENV PUPPETEER_CACHE_DIR=/opt/browsers
-ENV PUPPETEER_SKIP_DOWNLOAD=true
-
-RUN cd /opt/sails-hook-redbox-pdfgen \
-    && npm ci
+RUN mkdir -p /opt/browsers /opt/sails-hook-redbox-pdfgen /opt/redbox-integration-node_modules \
+    && chown -R node:node /opt/browsers /opt/sails-hook-redbox-pdfgen /opt/redbox-integration-node_modules
 
 FROM runtime-base AS final
 
 COPY --chown=node:node . /opt/sails-hook-redbox-pdfgen
-COPY --from=deps --chown=node:node /opt/sails-hook-redbox-pdfgen/node_modules /opt/sails-hook-redbox-pdfgen/node_modules
 
 USER node
 
