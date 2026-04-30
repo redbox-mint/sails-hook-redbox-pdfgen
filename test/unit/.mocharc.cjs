@@ -1,9 +1,9 @@
 module.exports = {
-  require: ["ts-node/register"],
-  extension: ["ts"],
+  require: ['ts-node/register'],
+  extension: ['ts'],
   recursive: true,
-  timeout: "30s",
-  ui: "bdd",
-  reporter: "spec",
+  timeout: '30s',
+  ui: 'bdd',
+  reporter: 'spec',
   exit: true
 };

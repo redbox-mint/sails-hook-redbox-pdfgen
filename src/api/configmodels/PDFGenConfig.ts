@@ -142,3 +142,97 @@ export class PDFGenConfig {
         ];
     }
 }
+
+export const PDFGEN_CONFIG_SCHEMA = {
+    type: 'object',
+    title: 'PDF Generation Config',
+    description: 'Configuration for PDF generation using Puppeteer.',
+    properties: {
+        token: {
+            type: 'string',
+            title: 'API Token',
+            description: 'API token for PDF generation. Required for authentication.',
+            default: ''
+        },
+        appUrlOverride: {
+            type: 'string',
+            title: 'App URL Override',
+            description: 'Override the base application URL for PDF generation.',
+            default: ''
+        },
+        sourceUrlBase: {
+            type: 'string',
+            title: 'Source URL Base',
+            description: 'Base path for the source URL used to generate the PDF.',
+            default: '/default/rdmp/record/view'
+        },
+        readinessStrategy: {
+            type: 'string',
+            title: 'Readiness Strategy',
+            description: 'Strategy to use to determine if the page is ready for PDF generation.',
+            default: 'networkIdle',
+            enum: ['networkIdle', 'selector', 'jsFlag', 'networkIdle+selector']
+        },
+        readinessTimeout: {
+            type: 'number',
+            title: 'Readiness Timeout',
+            description: 'Timeout in milliseconds to wait for the page to be ready.',
+            default: 60000
+        },
+        networkIdleTime: {
+            type: 'number',
+            title: 'Network Idle Time',
+            description: 'Time in milliseconds to wait for network idle if strategy is networkIdle.',
+            default: 2000
+        },
+        waitForSelector: {
+            type: 'string',
+            title: 'Wait For Selector',
+            description: 'CSS selector to wait for before generating the PDF.',
+            default: ''
+        },
+        waitForFunction: {
+            type: 'string',
+            title: 'Wait For Function',
+            description: 'JS function to evaluate if strategy is jsFlag.',
+            default: ''
+        },
+        pdfPrefix: {
+            type: 'string',
+            title: 'PDF Prefix',
+            description: 'Prefix for the generated PDF file name.',
+            default: 'pdf'
+        },
+        enableChromeLogging: {
+            type: 'boolean',
+            title: 'Enable Chrome Logging',
+            description: 'Enable verbose Chrome logging during PDF generation.',
+            default: false
+        },
+        maxRetries: {
+            type: 'number',
+            title: 'Max Retries',
+            description: 'Maximum number of retries for PDF generation.',
+            default: 2
+        },
+        retryDelayMs: {
+            type: 'number',
+            title: 'Retry Delay (ms)',
+            description: 'Delay in milliseconds before retrying PDF generation.',
+            default: 5000
+        },
+        retryBackoffMultiplier: {
+            type: 'number',
+            title: 'Retry Backoff Multiplier',
+            description: 'Multiplier for retry delay (exponential backoff).',
+            default: 2
+        },
+        PDFOptions: {
+            type: 'object',
+            title: 'PDF Options',
+            description: 'Additional Puppeteer PDF options.',
+            default: {},
+            additionalProperties: true
+        }
+    }
+};

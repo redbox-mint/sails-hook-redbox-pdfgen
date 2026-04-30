@@ -4,18 +4,12 @@
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
-    "strict": false,
+    "strict": true,
     "allowUmdGlobalAccess": true,
     "typeRoots": [
       "./node_modules/@types"
     ]
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts"
-  ],
-  "exclude": [
-    "dist/**/*.ts",
-    "dist/**/*.d.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "exclude": ["dist/**/*.ts", "dist/**/*.d.ts"]
 }

@@ -3,7 +3,7 @@ import { defineRedboxHook, type HookRegistrationMap } from '@researchdatabox/red
 import * as path from 'path';
 import { pdfgen } from './config/pdfgen';
 
-export {};
+export { };
 
 const hook = defineRedboxHook({
   initialize(sails, cb) {
@@ -16,7 +16,7 @@ const hook = defineRedboxHook({
 
     sails.after('hook:moduleloader:loaded', () => {
       try {
-        const { PDFGenConfig } = require('./api/configmodels/PDFGenConfig');
+        const { PDFGenConfig, PDFGEN_CONFIG_SCHEMA } = require('./api/configmodels/PDFGenConfig');
         const appConfigService = (sails.services as Record<string, any>)?.appconfigservice;
         if (appConfigService?.registerConfigModel) {
           appConfigService.registerConfigModel({
@@ -24,6 +24,7 @@ const hook = defineRedboxHook({
             modelName: 'PDFGenConfig',
             title: 'PDF Generation Config',
             class: PDFGenConfig,
+            schema: PDFGEN_CONFIG_SCHEMA,
             tsGlob: path.join(__dirname, '../src/api/configmodels/*.ts')
           });
         } else {
@@ -40,7 +41,7 @@ const hook = defineRedboxHook({
     before: {},
     after: {}
   },
-  configure() {},
+  configure() { },
   defaults: {
     __configKey__: {
       _hookTimeout: 120000

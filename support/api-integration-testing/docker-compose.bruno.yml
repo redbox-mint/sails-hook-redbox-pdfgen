@@ -1,4 +1,4 @@
-name: pdfgen-mocha
+name: pdfgen-bruno
 
 networks:
   main:
@@ -10,6 +10,8 @@ x-rbportal-env: &rbportal-env
   - sails_redbox__mochaTesting=true
   - sails_security__csrf=false
   - LOAD_DEFAULT_FORMS=true
+  - sails_brandingConfigurationDefaults__auth__local__default__token=6b088b4d-d54c-470c-8568-2f2695fcdab9
+  - sails_brandingConfigurationDefaults__pdfgen__token=6b088b4d-d54c-470c-8568-2f2695fcdab9
   - CI=${CI:-false}
   - RBPORTAL_COVERAGE_DIR=/tmp/coverage/mocha
 
@@ -20,34 +22,59 @@ x-rbportal-depends: &rbportal-depends
     condition: service_healthy
 
 services:
+  bruno:
+    image: node:24.14.1-bookworm
+    pull_policy: "missing"
+    volumes:
+      - "../../.tmp/junit/backend-bruno:/opt/junit/backend-bruno"
+      - "../../test/bruno:/opt/bruno-tests"
+    working_dir: /opt/bruno-tests
+    depends_on:
+      redboxportal:
+        condition: service_healthy
+    networks:
+      main:
+        aliases:
+          - bruno
+    entrypoint: >-
+      /bin/sh -lc "cd /opt/bruno-tests &&
+      npm ci --ignore-scripts &&
+      node_modules/.bin/bru run
+      --env test
+      --format junit
+      --output /opt/junit/backend-bruno/backend-bruno.xml
+      --bail"
+
   redboxportal:
     build:
-      context: ../../..
-      dockerfile: redbox-hook--researchdatabox-sails-hook-redbox-pdfgen/Dockerfile
+      context: ../..
+      dockerfile: Dockerfile
       target: redbox-hook--researchdatabox-sails-hook-redbox-pdfgen
     ports:
       - "1500:1500"
     volumes:
       - "../../:/opt/redbox-portal/node_modules/@researchdatabox/sails-hook-redbox-pdfgen:delegated"
-      - "../../../redbox-portal/test:/opt/redbox-portal/test"
-      - "../../../redbox-portal/support/integration-testing:/opt/redbox-portal/support/integration-testing"
-      - "../../../redbox-portal/tsconfig.json:/opt/redbox-portal/tsconfig.json"
-      - "../../test/integration:/opt/redbox-portal/test/integration/-researchdatabox-sails-hook-redbox-pdfgen"
-      - "../../../redbox-portal/packages/redbox-core:/opt/redbox-portal/packages/redbox-core"
-      - "../../../redbox-portal/packages/redbox-dev-tools:/opt/redbox-portal/packages/redbox-dev-tools"
-      - "../../../redbox-portal/packages/sails-ng-common:/opt/redbox-portal/packages/sails-ng-common"
+      - "./recordtype.config.js:/opt/redbox-portal/node_modules/@researchdatabox/redbox-core/dist/config/recordtype.config.js:delegated"
     depends_on: *rbportal-depends
     expose:
       - "1500"
+    healthcheck:
+      test: ["CMD-SHELL", "curl http://localhost:1500/default/rdmp/home"]
+      interval: "10s"
+      timeout: "5s"
+      retries: 10
+      start_period: "60s"
     environment: *rbportal-env
     networks:
       main:
         aliases:
           - redboxportal
+          - rbportal
     init: true
-    entrypoint:
-      - bash
-      - /opt/redbox-portal/node_modules/@researchdatabox/sails-hook-redbox-pdfgen/support/integration-testing/run-mocha-hook.sh
+    entrypoint: >-
+      /bin/bash -c "set -x;
+      cd /opt/redbox-portal &&
+      node --enable-source-maps app.js;"
 
   mongodb:
     image: mongo:7

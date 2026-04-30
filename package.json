@@ -1,62 +1,41 @@
 {
   "name": "@researchdatabox/sails-hook-redbox-pdfgen",
-  "version": "1.3.1",
-  "description": "Adds PDF generation functionality for records to ReDBox",
+  "version": "1.0.0",
+  "description": "ReDBox hook for PDF generation using Puppeteer",
   "main": "dist/index.js",
   "sails": {
     "isHook": true,
-    "hasServices": true
+    "hasServices": true,
+    "hasConfig": true
   },
   "scripts": {
-    "clean": "rm -rf dist",
-    "compile": "npm run clean && node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-tsc.js -p tsconfig.json",
-    "test": "npm run compile && npm run test:unit && npm run test:integration:mocha",
-    "compile:tsc": "npm run compile",
-    "build": "npm run compile",
-    "dev:host": "./support/prepare-host.sh",
-    "dev:host:clean": "sudo rm -rf ./support/.tmp && docker volume prune -af",
-    "dev:run": "COMPOSE_HTTP_TIMEOUT=120 docker compose -f ./support/docker-compose.yml up --remove-orphans",
-    "dev:docker:clean": "docker compose -f ./support/docker-compose.yml down",
-    "test:unit": "TS_NODE_PROJECT=./test/tsconfig.json node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-mocha.js --config ./test/unit/.mocharc.cjs \"./test/unit/**/*.test.ts\"",
-    "test:integration:mocha": "docker compose -f ./support/integration-testing/docker-compose.mocha.yml up --build --menu=false --abort-on-container-exit --exit-code-from redboxportal",
+    "compile": "node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-tsc.js -p tsconfig.json",
+    "test": "npm run test:unit && npm run test:integration:mocha",
+    "test:unit": "TS_NODE_PROJECT=./test/tsconfig.json npm run compile && node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-mocha.js --config ./test/unit/.mocharc.cjs ./test/unit",
+    "test:integration:mocha": "npm run compile &&docker compose -f ./support/integration-testing/docker-compose.mocha.yml up --build --menu=false --abort-on-container-exit --exit-code-from redboxportal",
     "test:integration:mocha:clean": "docker compose -f ./support/integration-testing/docker-compose.mocha.yml down -v --remove-orphans --timeout 180",
-    "test:mocha": "npm run test:integration:mocha",
-    "test:mocha:clean": "npm run test:integration:mocha:clean",
-    "test:bruno": "RBPORTAL_NODE_ENV=test docker compose -f ./support/docker-compose.bruno.yml up --abort-on-container-exit --exit-code-from bruno",
-    "test:bruno:clean": "docker compose -f ./support/docker-compose.bruno.yml down"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+ssh://git@github.com/redbox-mint/sails-hook-redbox-pdfgen.git"
+    "test:integration:bruno": "npm run compile && docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml up --build --menu=false --abort-on-container-exit --exit-code-from bruno",
+    "test:integration:bruno:clean": "docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml down -v --remove-orphans --timeout 180",
+    "dev:run": "docker compose -f ./support/development/docker-compose.yml up --build --menu=false --abort-on-container-exit --exit-code-from rbportal",
+    "dev:run:build": "docker compose -f ./support/development/docker-compose.yml build",
+    "dev:run:clean": "docker compose -f ./support/development/docker-compose.yml down -v --remove-orphans --timeout 180",
+    "dev:run:prepare": "mkdir -p ./support/development/.tmp/attachments/staging"
   },
   "keywords": [
     "sails",
     "hook",
     "redbox"
   ],
-  "author": "Andrew Brazzatti",
   "license": "GPL-3.0",
-  "devDependencies": {
-    "@researchdatabox/redbox-core": "0.0.1-beta.8936",
-    "@researchdatabox/redbox-dev-tools": "0.0.1-beta.8936",
-    "@types/node": "24.12.0",
-    "@types/sinon": "21.0.0",
-    "sails": "1.5.17",
-    "sinon": "21.0.2"
-  },
   "dependencies": {
-    "effect": "3.21.0",
     "puppeteer": "24.39.1"
   },
   "peerDependencies": {
-    "@researchdatabox/redbox-core": "^1.5.0",
-    "luxon": ">=3.0.0",
-    "rxjs": ">=6.0.0"
+    "@researchdatabox/redbox-core-types": "0.0.1-beta.9022"
   },
-  "overrides": {
-    "serialize-javascript": "7.0.5"
-  },
-  "publishConfig": {
-    "access": "public"
+  "devDependencies": {
+    "@researchdatabox/redbox-core-types": "0.0.1-beta.9022",
+    "@researchdatabox/redbox-dev-tools": "0.0.1-beta.9020",
+    "@types/node": "24.12.2"
   }
 }

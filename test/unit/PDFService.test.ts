@@ -3,6 +3,8 @@ const sinon = require('sinon');
 const { expect } = require('@researchdatabox/redbox-dev-tools/testing');
 const { clearPdfgenTestGlobals, installPdfgenTestGlobals } = require('../support/globals');
 
+const globalAny = global as any;
+
 describe('PDFService Unit Tests', () => {
     let pdfService: any;
     let mockPage: any;
@@ -13,14 +15,17 @@ describe('PDFService Unit Tests', () => {
     beforeEach(function () {
         this.timeout(10000);
         installPdfgenTestGlobals();
-        storageDiskPutStub = global.sails.services.storagemanagerservice.stagingDisk().put;
-        addDatastreamStub = global.sails.services.standarddatastreamservice.addDatastream;
+        storageDiskPutStub = globalAny.sails.services.storagemanagerservice.stagingDisk().put;
+        addDatastreamStub = globalAny.sails.services.standarddatastreamservice.addDatastream;
 
         const compiledServicePath = require.resolve('../../dist/api/services/PDFService.js');
-        delete require.cache[compiledServicePath];
+        const requireCache = (require as NodeJS.Require & { cache?: Record<string, unknown> }).cache;
+        if (requireCache?.[compiledServicePath]) {
+            delete requireCache[compiledServicePath];
+        }
         const compiledService = require(compiledServicePath);
         pdfService = new compiledService.Services.PDF();
-        pdfService.DatastreamService = global.sails.services.standarddatastreamservice;
+        pdfService.DatastreamService = globalAny.sails.services.standarddatastreamservice;
 
         mockPage = {
             setExtraHTTPHeaders: sinon.stub(),
@@ -49,8 +54,8 @@ describe('PDFService Unit Tests', () => {
     });
 
     it('should fail fast if required services are missing', async () => {
-        delete global.sails.services.storagemanagerservice;
-        delete global.StorageManagerService;
+        delete globalAny.sails.services.storagemanagerservice;
+        delete globalAny.StorageManagerService;
 
         const service: any = pdfService;
         const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', { metaMetadata: { brandId: 1 } }, {}));
@@ -67,7 +72,7 @@ describe('PDFService Unit Tests', () => {
         await Effect.runPromise(service.generatePDF('oid-1', record, options));
 
         expect(mockPage.waitForNetworkIdle.called).to.be.true;
-        expect(global.sails.log.warn.calledWithMatch(/Unknown readinessStrategy/)).to.be.true;
+        expect(globalAny.sails.log.warn.calledWithMatch(/Unknown readinessStrategy/)).to.be.true;
     });
 
     it('should use selector strategy', async () => {
@@ -149,6 +154,6 @@ describe('PDFService Unit Tests', () => {
         await new Promise((resolve) => setTimeout(resolve, 30));
 
         expect(mockPage.goto.callCount).to.equal(2);
-        expect(global.sails.log.warn.calledWithMatch(/Retry scheduled: true/)).to.be.true;
+        expect(globalAny.sails.log.warn.calledWithMatch(/Retry scheduled: true/)).to.be.true;
     });
 });

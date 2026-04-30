@@ -4,8 +4,5 @@
     "noEmit": true,
     "types": ["node", "mocha", "chai"]
   },
-  "include": [
-    "./**/*.ts",
-    "../src/**/*.ts"
-  ]
+  "include": ["./**/*.ts", "../src/**/*.ts"]
 }
