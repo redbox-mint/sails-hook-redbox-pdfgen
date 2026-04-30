@@ -12,8 +12,6 @@
     "compile": "node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-tsc.js -p tsconfig.json",
     "test": "npm run test:unit && npm run test:integration:mocha",
     "test:unit": "TS_NODE_PROJECT=./test/tsconfig.json npm run compile && node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-mocha.js --config ./test/unit/.mocharc.cjs ./test/unit",
-    "test:integration:mocha": "npm run compile &&docker compose -f ./support/integration-testing/docker-compose.mocha.yml up --build --menu=false --abort-on-container-exit --exit-code-from redboxportal",
-    "test:integration:mocha:clean": "docker compose -f ./support/integration-testing/docker-compose.mocha.yml down -v --remove-orphans --timeout 180",
     "test:integration:bruno": "npm run compile && docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml up --build --menu=false --abort-on-container-exit --exit-code-from bruno",
     "test:integration:bruno:clean": "docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml down -v --remove-orphans --timeout 180",
     "dev:run": "docker compose -f ./support/development/docker-compose.yml up --build --menu=false --abort-on-container-exit --exit-code-from rbportal",
