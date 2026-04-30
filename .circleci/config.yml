@@ -1,5 +1,23 @@
 version: 2.1
 
+parameters:
+  npm_publish_mode:
+    type: enum
+    enum:
+      - none
+      - beta
+    default: none
+  npm_publish_version:
+    type: string
+    default: ""
+  npm_publish_dist_tag:
+    type: enum
+    enum:
+      - beta
+      - next
+      - alpha
+    default: beta
+
 jobs:
   build:
     docker:
@@ -27,7 +45,18 @@ jobs:
           paths:
             - .
 
-  test:
+  test-unit:
+    docker:
+      # docker image version must match version in .nvmrc
+      - image: 'cimg/node:24.14.1'
+    steps:
+      - attach_workspace:
+          at: /home/circleci/project
+      - run:
+          name: Run unit tests
+          command: npm run test:unit
+
+  test-bruno:
     machine:
       image: ubuntu-2204:current
     resource_class: large
@@ -37,24 +66,33 @@ jobs:
       - attach_workspace:
           at: /home/circleci/project
       - run:
-          name: Prepare the host machine
-          command: npm run dev:host
-      - run:
-          # TODO: chmod 777 isn't great, but the permission errors were getting too complicated
-          name: Change project dir ownership to work in docker container
+          name: Setup Bruno test directories
           command: |
+            sudo mkdir -p .tmp/junit/backend-bruno
+            sudo mkdir -p .tmp/attachments/staging
             sudo chmod -R 'u=rwx,g=rwx,o=rwx' /home/circleci/project
       - run:
-          name: Run unit and Mocha integration tests
-          command: |
-            npm run test:unit
-            npm run test:integration:mocha
+          name: Run Bruno integration tests
+          no_output_timeout: 30m
+          command: npm run test:integration:bruno
       - run:
-          name: Clean up integration test containers
-          command: npm run test:integration:mocha:clean || true
+          name: Clean up Bruno integration test containers
+          command: npm run test:integration:bruno:clean || true
           when: always
 
-  publish:
+  npm-publish-package:
+    parameters:
+      release_kind:
+        type: enum
+        enum:
+          - beta
+          - release
+      release_version:
+        type: string
+        default: ""
+      dist_tag:
+        type: string
+        default: "latest"
     docker:
       # docker image version must match version in .nvmrc
       - image: 'cimg/node:24.14.1'
@@ -69,21 +107,24 @@ jobs:
           name: Install packages
           command: npm ci
       - run:
-          name: Compile the typescript
-          command: npm run compile
-      - run:
-          name: Authenticate with NPM
-          command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc
+          name: Get npm OIDC token
+          command: |
+            OIDC_TOKEN="$(circleci run oidc get --claims '{"aud": "npm:registry.npmjs.org"}')"
+            printf 'export NPM_ID_TOKEN=%q\n' "$OIDC_TOKEN" >> "$BASH_ENV"
       - run:
           name: Publish package
-          command: npm publish --access public
-      - save_cache:
-          key: v1-node-{{ .Branch }}-{{ checksum "package-lock.json" }}
-          paths:
-            - ~/.npm
+          command: |
+            source "$BASH_ENV"
+            CIRCLE_PIPELINE_NUMBER="<< pipeline.number >>" \
+            NPM_RELEASE_KIND="<< parameters.release_kind >>" \
+            NPM_PUBLISH_VERSION="<< parameters.release_version >>" \
+            NPM_DIST_TAG="<< parameters.dist_tag >>" \
+            bash support/build/npm-publish-package.sh
 
 workflows:
   branch-build-test:
+    when:
+      equal: [ none, << pipeline.parameters.npm_publish_mode >> ]
     jobs:
       - build:
           filters:
@@ -91,7 +132,15 @@ workflows:
               only: /.*/
             tags:
               ignore: /.*/
-      - test:
+      - test-unit:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              ignore: /.*/
+      - test-bruno:
           requires:
             - build
           filters:
@@ -101,27 +150,54 @@ workflows:
               ignore: /.*/
 
   tag-build-test-publish:
+    when:
+      equal: [ none, << pipeline.parameters.npm_publish_mode >> ]
     jobs:
       - build:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v.*/
-      - test:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+      - test-unit:
           requires:
             - build
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v.*/
-      - publish:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+      - test-bruno:
           requires:
             - build
-            - test
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v.*/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+      - npm-publish-package:
+          name: publish-release
+          release_kind: release
+          release_version: ""
+          dist_tag: latest
+          context:
+            - npm-publish
+          requires:
+            - test-unit
+            - test-bruno
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+
+  npm_beta_publish:
+    when:
+      equal: [ beta, << pipeline.parameters.npm_publish_mode >> ]
+    jobs:
+      - npm-publish-package:
+          release_kind: beta
+          release_version: << pipeline.parameters.npm_publish_version >>
+          dist_tag: << pipeline.parameters.npm_publish_dist_tag >>
+          context:
+            - npm-publish
