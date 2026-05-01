@@ -22,11 +22,10 @@ tests {
 
   test("Audit log has PDF entries", function () {
       var jsonData = res.getBody();
-      expect(jsonData).to.have.property('data');
-      expect(jsonData.data).to.have.property('records');
-      expect(Array.isArray(jsonData.data.records)).to.equal(true);
+      expect(jsonData).to.have.property('records');
+      expect(Array.isArray(jsonData.records)).to.equal(true);
 
-      var pdfRecords = jsonData.data.records.filter(function (r) {
+      var pdfRecords = jsonData.records.filter(function (r) {
           return r.integrationName === 'pdf';
       });
       expect(pdfRecords.length).to.be.greaterThan(0);
@@ -34,7 +33,7 @@ tests {
 
   test("Has a successful generatePdfTrigger parent audit", function () {
       var jsonData = res.getBody();
-      var parents = jsonData.data.records.filter(function (r) {
+      var parents = jsonData.records.filter(function (r) {
           return r.integrationName === 'pdf' && r.integrationAction === 'generatePdfTrigger';
       });
       expect(parents.length).to.be.greaterThan(0);
@@ -47,14 +46,14 @@ tests {
 
   test("Has a successful generatePdf child audit linked to the parent trace", function () {
       var jsonData = res.getBody();
-      var parents = jsonData.data.records.filter(function (r) {
+      var parents = jsonData.records.filter(function (r) {
           return r.integrationName === 'pdf' && r.integrationAction === 'generatePdfTrigger';
       });
       expect(parents.length, 'expected at least one generatePdfTrigger parent audit').to.be.greaterThan(0);
       var parent = parents[0];
       var parentTraceId = parent.traceId;
 
-      var children = jsonData.data.records.filter(function (r) {
+      var children = jsonData.records.filter(function (r) {
           return r.integrationName === 'pdf'
               && r.integrationAction === 'generatePdf'
               && r.traceId === parentTraceId;
