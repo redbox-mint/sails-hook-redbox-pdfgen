@@ -1,6 +1,7 @@
 import '@researchdatabox/redbox-core';
 import { defineRedboxHook, type HookRegistrationMap } from '@researchdatabox/redbox-core';
 import * as path from 'path';
+import { agendaQueue } from './config/agendaQueue';
 import { pdfgen } from './config/pdfgen';
 
 export { };
@@ -49,6 +50,7 @@ const hook = defineRedboxHook({
   },
   registerRedboxConfig(): HookRegistrationMap {
     return {
+      agendaQueue,
       pdfgen
     };
   },

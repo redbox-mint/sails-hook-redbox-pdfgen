@@ -20,6 +20,14 @@ import {
   PDFError,
   PDFRenderError
 } from './PDFErrors';
+import {
+  completePdfAudit,
+  failPdfAudit,
+  IntegrationAuditContext,
+  PdfIntegrationAuditAction,
+  PdfIntegrationAuditName,
+  startPdfAudit
+} from './PDFAudit';
 
 
 export namespace Services {
@@ -116,8 +124,25 @@ export namespace Services {
       }
     }
 
-    private attemptPDFGeneration(oid: string, record: any, options: any, brand: any, attempt: number): Effect.Effect<void, PDFError> {
-      return Effect.scoped(Effect.gen(this, function* () {
+    private attemptPDFGeneration(
+      oid: string,
+      record: any,
+      options: any,
+      brand: any,
+      attempt: number,
+      parentAuditCtx?: IntegrationAuditContext | null
+    ): Effect.Effect<void, PDFError> {
+      // Resolve URL / option metadata up-front so that the audit `requestSummary`
+      // describes what we're about to attempt regardless of whether the browser
+      // launch ever succeeds.
+      const sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`);
+      const pdfgenAppUrlOverride = this.getOption(brand, options, 'appUrlOverride');
+      const baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
+      const currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
+      const readinessStrategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
+      const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
+
+      const work = Effect.scoped(Effect.gen(this, function* () {
         yield* Effect.sync(() => sails.log.verbose(`PDFService::Creating PDF for: ${oid} (Attempt ${attempt})`));
 
         const token = this.getOption(brand, options, 'token');
@@ -191,11 +216,6 @@ export namespace Services {
           });
         }
 
-        const sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`);
-        const pdfgenAppUrlOverride = this.getOption(brand, options, 'appUrlOverride');
-        const baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
-        const currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
-
         yield* Effect.addFinalizer(() => Effect.sync(() => {
           this.processMap.delete(currentURL);
         }));
@@ -220,14 +240,13 @@ export namespace Services {
           attributes: {
             oid,
             attempt,
-            strategy: this.getOption(brand, options, 'readinessStrategy', 'networkIdle')
+            strategy: readinessStrategy
           }
         }));
 
         yield* Effect.sync(() => sails.log.verbose(`PDFService::Page ready: ${currentURL}, generating PDF...`));
 
         const date = DateTime.now().toMillis();
-        const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`;
 
         let pdfOptions = this.getOption(brand, options, 'PDFOptions') || {};
@@ -260,7 +279,68 @@ export namespace Services {
         });
 
         yield* this.logDebug(`PDFService::Saved PDF to storage: ${oid}`);
+
+        return {
+          fileId,
+          pdfBufferSize: (pdfBuffer as Buffer | Uint8Array | { length?: number })?.length ?? 0
+        };
       })).pipe(Effect.withSpan('generatePDF', { attributes: { oid, attempt, brand: brand.name } }));
+
+      // Audit lifecycle wrapper. `startPdfAudit` returns null when the global
+      // `IntegrationAuditService` is absent, so the helpers no-op gracefully
+      // and PDF generation behaviour is unchanged in non-audit environments.
+      return Effect.suspend(() => {
+        // Distinguish the initial attempt (treated as the original trigger) from
+        // retry attempts. A parent context alone isn't enough — `createPDF` always
+        // creates a parent and threads it into attempt 1 so the child links into
+        // the trace. The retry signal is `attempt > 1`.
+        const childTriggeredBy = attempt > 1 ? 'pdfRetry' : 'createPDF';
+        const auditCtx = startPdfAudit(
+          oid,
+          PdfIntegrationAuditAction.generatePdf,
+          {
+            integrationName: PdfIntegrationAuditName,
+            brandId: record?.metaMetadata?.brandId,
+            triggeredBy: childTriggeredBy,
+            requestSummary: {
+              attempt,
+              url: currentURL,
+              sourceUrlBase,
+              readinessStrategy,
+              pdfPrefix
+            }
+          },
+          parentAuditCtx
+        );
+
+        return Effect.matchEffect(work, {
+          onSuccess: (result) =>
+            Effect.sync(() => {
+              completePdfAudit(auditCtx, {
+                message: 'PDF generated successfully.',
+                responseSummary: {
+                  fileId: result?.fileId,
+                  pdfBufferSize: result?.pdfBufferSize,
+                  attempt
+                }
+              });
+            }),
+          onFailure: (error: PDFError) =>
+            Effect.sync(() => {
+              failPdfAudit(auditCtx, error, {
+                message: 'PDF generation failed.',
+                responseSummary: {
+                  errorTag: error._tag,
+                  url: currentURL,
+                  cause: (error as { cause?: unknown }).cause instanceof Error
+                    ? ((error as { cause?: Error }).cause as Error).message
+                    : undefined,
+                  attempt
+                }
+              });
+            }).pipe(Effect.zipRight(Effect.fail(error)))
+        });
+      });
     }
 
     private generatePDF(oid: string, record: any, options: any) {
@@ -306,42 +386,97 @@ export namespace Services {
       const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
       const baseDelayMs = this.getOption(brand, options, 'retryDelayMs', 5000);
       const multiplier = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
+      const triggerSource = (options && typeof options === 'object' && typeof options.triggerSource === 'string')
+        ? options.triggerSource
+        : 'createPDF';
+
+      // Parent audit span — links every attempt under one trace so a single
+      // createPDF lifecycle (initial attempt + any background retries) is
+      // visible as one trace in the audit dashboard. Returns null when the
+      // global IntegrationAuditService is absent.
+      const parentAuditCtx = startPdfAudit(
+        oid,
+        PdfIntegrationAuditAction.generatePdfTrigger,
+        {
+          integrationName: PdfIntegrationAuditName,
+          brandId: record?.metaMetadata?.brandId,
+          triggeredBy: triggerSource,
+          requestSummary: {
+            maxRetries,
+            baseDelayMs,
+            multiplier,
+            triggerSource
+          }
+        }
+      );
+
+      let attemptsRun = 0;
+      let parentClosed = false;
+      const closeParent = (finalStatus: 'success' | 'failed' | 'skipped' | 'pending', error?: unknown) => {
+        if (parentClosed) {
+          return;
+        }
+        parentClosed = true;
+        if (finalStatus === 'failed' && error != null) {
+          failPdfAudit(parentAuditCtx, error, {
+            message: 'PDF generation pipeline failed.',
+            responseSummary: { attemptsRun, finalStatus }
+          });
+          return;
+        }
+        completePdfAudit(parentAuditCtx, {
+          message: 'PDF generation pipeline completed.',
+          responseSummary: { attemptsRun, finalStatus }
+        });
+      };
 
       const runBackgroundRetries = (remainingRetries: number, nextAttempt: number): Effect.Effect<void, never> =>
         remainingRetries <= 0
-          ? Effect.void
+          ? Effect.sync(() => closeParent('failed'))
           : Effect.gen(this, function* () {
               const retryIndex = maxRetries - remainingRetries;
               const delayMs = baseDelayMs * Math.pow(multiplier, retryIndex);
               yield* this.logWarn(`PDFService::Scheduling retry ${nextAttempt - 1} of ${maxRetries} for ${oid} in ${delayMs}ms`);
               yield* Effect.sleep(Duration.millis(delayMs));
-              yield* this.attemptPDFGeneration(oid, record, options, brand, nextAttempt).pipe(
-                Effect.catchAll((error: PDFError) => {
-                  if (this.isRetryable(error)) {
-                    if (remainingRetries === 1) {
-                      return this.logError(`PDFService::Max retries exhausted for ${oid} or non-retryable error.`, error);
+              attemptsRun += 1;
+              yield* this.attemptPDFGeneration(oid, record, options, brand, nextAttempt, parentAuditCtx).pipe(
+                Effect.matchEffect({
+                  onSuccess: () => Effect.sync(() => closeParent('success')),
+                  onFailure: (error: PDFError) => {
+                    if (this.isRetryable(error)) {
+                      if (remainingRetries === 1) {
+                        return this.logError(`PDFService::Max retries exhausted for ${oid} or non-retryable error.`, error)
+                          .pipe(Effect.zipRight(Effect.sync(() => closeParent('failed', error))));
+                      }
+                      return runBackgroundRetries(remainingRetries - 1, nextAttempt + 1);
                     }
-                    return runBackgroundRetries(remainingRetries - 1, nextAttempt + 1);
+                    return this.logWarn(`PDFService::non-retryable failure, skipping`, error)
+                      .pipe(Effect.zipRight(Effect.sync(() => closeParent('failed', error))));
                   }
-                  return this.logWarn(`PDFService::non-retryable failure, skipping`, error);
                 })
               );
             });
 
-      const effect = this.attemptPDFGeneration(oid, record, options, brand, 1).pipe(
-        Effect.catchAll((error: PDFError) => {
-          if (this.isRetryable(error)) {
-            return Effect.gen(this, function* () {
-              yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true. Error: ${error?.name} - ${error?.message}`);
-              yield* Effect.forkDaemon(runBackgroundRetries(maxRetries, 2));
-            });
-          }
+      attemptsRun += 1;
+      const effect = this.attemptPDFGeneration(oid, record, options, brand, 1, parentAuditCtx).pipe(
+        Effect.matchEffect({
+          onSuccess: () => Effect.sync(() => closeParent('success')),
+          onFailure: (error: PDFError) => {
+            if (this.isRetryable(error)) {
+              return Effect.gen(this, function* () {
+                yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true. Error: ${error?.name} - ${error?.message}`);
+                yield* Effect.forkDaemon(runBackgroundRetries(maxRetries, 2));
+              });
+            }
 
-          if (error._tag === 'MissingTokenError') {
-            return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false. Error: ${error?.name} - ${error?.message}`);
-          }
+            if (error._tag === 'MissingTokenError') {
+              return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false. Error: ${error?.name} - ${error?.message}`)
+                .pipe(Effect.zipRight(Effect.sync(() => closeParent('skipped', error))));
+            }
 
-          return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false. Error: ${error?.name} - ${error?.message}`);
+            return this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: false. Error: ${error?.name} - ${error?.message}`)
+              .pipe(Effect.zipRight(Effect.sync(() => closeParent('failed', error))));
+          }
         }),
         Effect.as(record),
         Effect.withSpan('createPDF', { attributes: { oid, brand: brand.name } })

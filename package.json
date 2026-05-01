@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "ReDBox hook for PDF generation using Puppeteer",
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "sails": {
     "isHook": true,
     "hasServices": true,
@@ -10,8 +14,9 @@
   },
   "scripts": {
     "compile": "node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-tsc.js -p tsconfig.json",
+    "prepack": "npm run compile",
     "test": "npm run test:unit && npm run test:integration:mocha",
-    "test:unit": "TS_NODE_PROJECT=./test/tsconfig.json npm run compile && node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-mocha.js --config ./test/unit/.mocharc.cjs ./test/unit",
+    "test:unit": "npm run compile && TS_NODE_PROJECT=./test/tsconfig.json node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-mocha.js --config ./test/unit/.mocharc.cjs ./test/unit",
     "test:integration:bruno": "npm run compile && docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml up --build --menu=false --abort-on-container-exit --exit-code-from bruno",
     "test:integration:bruno:clean": "docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml down -v --remove-orphans --timeout 180",
     "dev:run": "docker compose -f ./support/development/docker-compose.yml up --build --menu=false --abort-on-container-exit --exit-code-from rbportal",
@@ -26,14 +31,20 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
+    "effect": "3.21.0",
+    "luxon": "3.7.2",
     "puppeteer": "24.39.1"
   },
   "peerDependencies": {
-    "@researchdatabox/redbox-core-types": "0.0.1-beta.9022"
+    "@researchdatabox/redbox-core": "0.0.1-beta.9022"
   },
   "devDependencies": {
-    "@researchdatabox/redbox-core-types": "0.0.1-beta.9022",
+    "@researchdatabox/redbox-core": "0.0.1-beta.9022",
     "@researchdatabox/redbox-dev-tools": "0.0.1-beta.9020",
-    "@types/node": "24.12.2"
+    "@types/luxon": "^3.7.1",
+    "@types/mocha": "10.0.10",
+    "@types/node": "24.12.2",
+    "@types/sinon": "21.0.0",
+    "sinon": "21.0.2"
   }
 }
