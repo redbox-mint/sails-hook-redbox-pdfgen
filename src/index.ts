@@ -1,8 +1,8 @@
 import '@researchdatabox/redbox-core';
 import { defineRedboxHook, type HookRegistrationMap } from '@researchdatabox/redbox-core';
 import * as path from 'path';
-import { agendaQueue } from './config/agendaQueue';
-import { pdfgen } from './config/pdfgen';
+import { agendaQueue } from './config/agendaQueue.js';
+import { pdfgen } from './config/pdfgen.js';
 
 export { };
 
@@ -17,16 +17,11 @@ const hook = defineRedboxHook({
 
     sails.after('hook:moduleloader:loaded', () => {
       try {
-        const { PDFGenConfig, PDFGEN_CONFIG_SCHEMA } = require('./api/configmodels/PDFGenConfig');
+        const { PDFGEN_CONFIG_MODEL } = require('./api/configmodels/PDFGenConfig');
         const appConfigService = (sails.services as Record<string, any>)?.appconfigservice;
         if (appConfigService?.registerConfigModel) {
           appConfigService.registerConfigModel({
-            key: 'pdfgen',
-            modelName: 'PDFGenConfig',
-            title: 'PDF Generation Config',
-            class: PDFGenConfig,
-            schema: PDFGEN_CONFIG_SCHEMA,
-            secretFields: ['token'],
+            ...PDFGEN_CONFIG_MODEL,
             tsGlob: path.join(__dirname, '../src/api/configmodels/*.ts')
           });
         } else {

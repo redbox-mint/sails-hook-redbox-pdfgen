@@ -236,3 +236,12 @@ export const PDFGEN_CONFIG_SCHEMA = {
         }
     }
 };
+
+export const PDFGEN_CONFIG_MODEL = {
+    key: 'pdfgen',
+    modelName: 'PDFGenConfig',
+    title: 'PDF Generation Config',
+    class: PDFGenConfig,
+    schema: PDFGEN_CONFIG_SCHEMA,
+    secretFields: ['token']
+};
