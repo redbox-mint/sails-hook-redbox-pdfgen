@@ -133,6 +133,40 @@ describe('PDFService Unit Tests', () => {
         expect(mockPage.goto.callCount).to.equal(2);
     });
 
+    it('should omit PDFOptions path without mutating the provided options object', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const configuredPDFOptions = {
+            path: '/tmp/should-not-be-used.pdf',
+            landscape: true,
+            scale: 1.25,
+            margin: {
+                top: '10mm',
+                bottom: '12mm'
+            }
+        };
+        const options = {
+            PDFOptions: configuredPDFOptions
+        };
+
+        const service: any = pdfService;
+        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+
+        expect(mockPage.pdf.calledOnce).to.equal(true);
+        const pdfOptions = mockPage.pdf.firstCall.args[0];
+        expect(pdfOptions).to.deep.include({
+            format: 'A4',
+            printBackground: true,
+            landscape: true,
+            scale: 1.25
+        });
+        expect(pdfOptions.margin).to.deep.equal({
+            top: '10mm',
+            bottom: '12mm'
+        });
+        expect(pdfOptions).to.not.have.property('path');
+        expect(configuredPDFOptions).to.have.property('path', '/tmp/should-not-be-used.pdf');
+    });
+
     it('should return the record immediately from createPDF and schedule background retries', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {

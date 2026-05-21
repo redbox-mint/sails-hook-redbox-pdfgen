@@ -249,8 +249,8 @@ export namespace Services {
         const date = DateTime.now().toMillis();
         const fileId = `${pdfPrefix}-${oid}-${date}.pdf`;
 
-        let pdfOptions = this.getOption(brand, options, 'PDFOptions') || {};
-        delete pdfOptions['path'];
+        const rawPdfOptions = this.getOption(brand, options, 'PDFOptions') || {};
+        const { path: _ignoredPath, ...pdfOptions } = rawPdfOptions;
 
         const defaultPDFOptions: any = {
           format: 'A4',

@@ -10,6 +10,33 @@ export type PdfgenReadinessStrategy =
   | 'jsFlag'
   | 'networkIdle+selector';
 
+export interface PdfgenPDFMargin {
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+}
+
+export interface PdfgenPDFOptions {
+  scale?: number;
+  displayHeaderFooter?: boolean;
+  headerTemplate?: string;
+  footerTemplate?: string;
+  printBackground?: boolean;
+  landscape?: boolean;
+  pageRanges?: string;
+  format?: 'Letter' | 'Legal' | 'Tabloid' | 'Ledger' | 'A0' | 'A1' | 'A2' | 'A3' | 'A4' | 'A5' | 'A6';
+  width?: string;
+  height?: string;
+  preferCSSPageSize?: boolean;
+  margin?: PdfgenPDFMargin;
+  omitBackground?: boolean;
+  tagged?: boolean;
+  outline?: boolean;
+  timeout?: number;
+  waitForFonts?: boolean;
+}
+
 export interface PdfgenConfig {
   token: string;
   appUrlOverride: string;
@@ -24,7 +51,7 @@ export interface PdfgenConfig {
   maxRetries: number;
   retryDelayMs: number;
   retryBackoffMultiplier: number;
-  PDFOptions?: Record<string, any>;
+  PDFOptions?: PdfgenPDFOptions;
 }
 
 export const pdfgen: PdfgenConfig = {

@@ -1,3 +1,5 @@
+import type { PdfgenPDFOptions } from '../../config/pdfgen';
+
 /**
  * Configuration for PDF Generation (pdfgen)
  * Used to control PDF generation options in the system.
@@ -121,7 +123,7 @@ export class PDFGenConfig {
      *
      * @title PDF Options
      */
-    PDFOptions?: any;
+    PDFOptions?: PdfgenPDFOptions;
 
     public static getFieldOrder(): string[] {
         return [
@@ -232,7 +234,147 @@ export const PDFGEN_CONFIG_SCHEMA = {
             title: 'PDF Options',
             description: 'Additional Puppeteer PDF options.',
             default: {},
-            additionalProperties: true
+            additionalProperties: false,
+            properties: {
+                format: {
+                    type: 'string',
+                    title: 'Paper Format',
+                    description: 'Paper format to use when generating the PDF.',
+                    enum: ['Letter', 'Legal', 'Tabloid', 'Ledger', 'A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6'],
+                    default: 'A4'
+                },
+                printBackground: {
+                    type: 'boolean',
+                    title: 'Print Background',
+                    description: 'Print background graphics.',
+                    default: true
+                },
+                landscape: {
+                    type: 'boolean',
+                    title: 'Landscape',
+                    description: 'Print in landscape orientation.',
+                    default: false
+                },
+                scale: {
+                    type: 'number',
+                    title: 'Scale',
+                    description: 'Scale of the webpage rendering. Puppeteer accepts values from 0.1 to 2.',
+                    minimum: 0.1,
+                    maximum: 2,
+                    default: 1
+                },
+                displayHeaderFooter: {
+                    type: 'boolean',
+                    title: 'Display Header and Footer',
+                    description: 'Display the configured header and footer templates.',
+                    default: false
+                },
+                headerTemplate: {
+                    type: 'string',
+                    title: 'Header Template',
+                    description: 'HTML template for the print header.',
+                    default: '',
+                    widget: {
+                        formlyConfig: {
+                            type: 'textarea'
+                        }
+                    }
+                },
+                footerTemplate: {
+                    type: 'string',
+                    title: 'Footer Template',
+                    description: 'HTML template for the print footer.',
+                    default: '',
+                    widget: {
+                        formlyConfig: {
+                            type: 'textarea'
+                        }
+                    }
+                },
+                pageRanges: {
+                    type: 'string',
+                    title: 'Page Ranges',
+                    description: 'Paper ranges to print, for example 1-5, 8, 11-13.',
+                    default: ''
+                },
+                preferCSSPageSize: {
+                    type: 'boolean',
+                    title: 'Prefer CSS Page Size',
+                    description: 'Give CSS @page size priority over width, height, or format.',
+                    default: false
+                },
+                width: {
+                    type: 'string',
+                    title: 'Paper Width',
+                    description: 'Paper width, including a unit such as 8.5in or 210mm.',
+                    default: ''
+                },
+                height: {
+                    type: 'string',
+                    title: 'Paper Height',
+                    description: 'Paper height, including a unit such as 11in or 297mm.',
+                    default: ''
+                },
+                margin: {
+                    type: 'object',
+                    title: 'Margins',
+                    description: 'PDF margins. Include units such as px, in, cm, or mm.',
+                    additionalProperties: false,
+                    properties: {
+                        top: {
+                            type: 'string',
+                            title: 'Top',
+                            default: ''
+                        },
+                        bottom: {
+                            type: 'string',
+                            title: 'Bottom',
+                            default: ''
+                        },
+                        left: {
+                            type: 'string',
+                            title: 'Left',
+                            default: ''
+                        },
+                        right: {
+                            type: 'string',
+                            title: 'Right',
+                            default: ''
+                        }
+                    }
+                },
+                omitBackground: {
+                    type: 'boolean',
+                    title: 'Omit Background',
+                    description: 'Hide the default white background and allow transparent PDFs.',
+                    default: false
+                },
+                tagged: {
+                    type: 'boolean',
+                    title: 'Tagged PDF',
+                    description: 'Generate a tagged, accessible PDF.',
+                    default: true
+                },
+                outline: {
+                    type: 'boolean',
+                    title: 'Document Outline',
+                    description: 'Generate a document outline.',
+                    default: false
+                },
+                timeout: {
+                    type: 'integer',
+                    title: 'Timeout (ms)',
+                    description: 'Timeout in milliseconds. Use 0 to disable timeout.',
+                    minimum: 0,
+                    default: 30000
+                },
+                waitForFonts: {
+                    type: 'boolean',
+                    title: 'Wait For Fonts',
+                    description: 'Wait for document fonts to be ready before generating the PDF.',
+                    default: true
+                }
+            }
         }
     }
 };
