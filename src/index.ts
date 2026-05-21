@@ -26,6 +26,7 @@ const hook = defineRedboxHook({
             title: 'PDF Generation Config',
             class: PDFGenConfig,
             schema: PDFGEN_CONFIG_SCHEMA,
+            secretFields: ['token'],
             tsGlob: path.join(__dirname, '../src/api/configmodels/*.ts')
           });
         } else {
