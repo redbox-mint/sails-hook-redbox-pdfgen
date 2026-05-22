@@ -374,22 +374,6 @@ export namespace Services {
       });
     }
 
-    private generatePDF(oid: string, record: any, options: any) {
-      const brand = this.getBranding(record);
-      let attempt = 0;
-
-      return Effect.suspend(() => {
-        attempt += 1;
-        return this.attemptPDFGeneration(oid, record, options, brand, attempt);
-      }).pipe(
-        Effect.retry({
-          schedule: this.buildRetrySchedule(brand, options),
-          while: (error: PDFError) => this.isRetryable(error)
-        }),
-        Effect.withSpan('createPDF', { attributes: { oid, brand: brand.name } })
-      );
-    }
-
     private getBranding(record: any) {
       if (typeof BrandingService === 'undefined') {
         throw new Error('BrandingService global is not available');
