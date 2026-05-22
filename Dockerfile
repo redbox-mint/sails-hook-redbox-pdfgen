@@ -12,7 +12,7 @@ RUN apt-get update \
 
 RUN --mount=type=cache,target=/root/.npm \
   cd /opt/redbox-hook--researchdatabox-sails-hook-redbox-pdfgen \
-  && npm install --include=dev --ignore-scripts --legacy-peer-deps \
+  && npm ci --include=dev --ignore-scripts --legacy-peer-deps \
   && npm run compile \
   && cd /opt/redbox-portal \
   && npm install --legacy-peer-deps --ignore-scripts /opt/redbox-hook--researchdatabox-sails-hook-redbox-pdfgen \
