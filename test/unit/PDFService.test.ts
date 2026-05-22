@@ -115,7 +115,7 @@ describe('PDFService Unit Tests', () => {
         expect(exit._tag).to.equal('Failure');
         expect(JSON.stringify((exit as any).cause)).to.contain('InvalidReadinessOptionError');
         expect(mockPage.waitForSelector.called).to.be.false;
-        expect(mockPage.goto.called).to.be.true;
+        expect(mockPage.goto.called).to.be.false;
     });
 
     it('should retry transient failures in the blocking effect', async () => {

@@ -88,20 +88,6 @@ export namespace Services {
       const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
       const timeout = this.getOption(brand, options, 'readinessTimeout', 60000);
 
-      if (strategy === 'selector' || strategy === 'networkIdle+selector') {
-        const waitForSelector = this.getOption(brand, options, 'waitForSelector');
-        if (typeof waitForSelector !== 'string' || waitForSelector.trim() === '') {
-          throw new InvalidReadinessOptionError({ oid: '', strategy, option: 'waitForSelector' });
-        }
-      }
-
-      if (strategy === 'jsFlag') {
-        const waitForFunction = this.getOption(brand, options, 'waitForFunction');
-        if (typeof waitForFunction !== 'string' || waitForFunction.trim() === '') {
-          throw new InvalidReadinessOptionError({ oid: '', strategy, option: 'waitForFunction' });
-        }
-      }
-
       switch (strategy) {
         case 'networkIdle':
           await page.waitForNetworkIdle({
@@ -156,6 +142,20 @@ export namespace Services {
       const currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
       const readinessStrategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
       const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
+
+      if (readinessStrategy === 'selector' || readinessStrategy === 'networkIdle+selector') {
+        const waitForSelector = this.getOption(brand, options, 'waitForSelector');
+        if (typeof waitForSelector !== 'string' || waitForSelector.trim() === '') {
+          return Effect.fail(new InvalidReadinessOptionError({ oid, strategy: readinessStrategy, option: 'waitForSelector' }));
+        }
+      }
+
+      if (readinessStrategy === 'jsFlag') {
+        const waitForFunction = this.getOption(brand, options, 'waitForFunction');
+        if (typeof waitForFunction !== 'string' || waitForFunction.trim() === '') {
+          return Effect.fail(new InvalidReadinessOptionError({ oid, strategy: readinessStrategy, option: 'waitForFunction' }));
+        }
+      }
 
       const work = Effect.scoped(Effect.gen(this, function* () {
         yield* Effect.sync(() => sails.log.verbose(`PDFService::Creating PDF for: ${oid} (Attempt ${attempt})`));
