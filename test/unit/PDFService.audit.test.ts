@@ -116,6 +116,28 @@ describe('PDFService Integration Audit', () => {
         expect(completeDetails.responseSummary.attempt).to.equal(1);
     });
 
+    it('records duplicate suppression as a skipped audit outcome', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {};
+        const currentURL = 'http://localhost:1500/default/rdmp/record/view/oid-duplicate';
+        const service: any = pdfService;
+
+        service.processMap.add(currentURL);
+        await Effect.runPromise(service.attemptPDFGeneration('oid-duplicate', record, options, { name: 'default' }, 1));
+
+        expect(auditStub.startAudit.calledOnce).to.be.true;
+        expect(auditStub.completeAudit.calledOnce).to.be.true;
+        expect(auditStub.failAudit.called).to.be.false;
+        expect(mockBrowser.newPage.called).to.be.false;
+
+        const [, completeDetails] = auditStub.completeAudit.getCall(0).args;
+        expect(completeDetails.message).to.equal('PDF generation skipped because a duplicate request was already in progress.');
+        expect(completeDetails.responseSummary).to.deep.equal({
+            outcome: 'duplicateSuppressed',
+            attempt: 1
+        });
+    });
+
     it('records a startAudit + failAudit pair when navigation fails', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {};

@@ -30,6 +30,16 @@ import {
   startPdfAudit
 } from './PDFAudit';
 
+type PDFGenerationResult =
+  | {
+      outcome: 'generated';
+      fileId: string;
+      pdfBufferSize: number;
+    }
+  | {
+      outcome: 'duplicateSuppressed';
+    };
+
 
 export namespace Services {
   /**
@@ -125,7 +135,7 @@ export namespace Services {
       brand: any,
       attempt: number,
       parentAuditCtx?: IntegrationAuditContext | null
-    ): Effect.Effect<void, PDFError> {
+    ): Effect.Effect<PDFGenerationResult, PDFError> {
       // Resolve URL / option metadata up-front so that the audit `requestSummary`
       // describes what we're about to attempt regardless of whether the browser
       // launch ever succeeds.
@@ -176,7 +186,9 @@ export namespace Services {
 
         if (!claimedRequest) {
           yield* this.logWarn(`PDFService::PDF generation already in progress for ${currentURL}, skipping duplicate request.`);
-          return;
+          return {
+            outcome: 'duplicateSuppressed' as const
+          };
         }
 
         const tmpUserDataDir = yield* Effect.acquireRelease(
@@ -312,6 +324,7 @@ export namespace Services {
         yield* this.logDebug(`PDFService::Saved PDF to storage: ${oid}`);
 
         return {
+          outcome: 'generated' as const,
           fileId,
           pdfBufferSize: (pdfBuffer as Buffer | Uint8Array | { length?: number })?.length ?? 0
         };
@@ -347,15 +360,26 @@ export namespace Services {
         return Effect.matchEffect(work, {
           onSuccess: (result) =>
             Effect.sync(() => {
+              if (result?.outcome === 'duplicateSuppressed') {
+                completePdfAudit(auditCtx, {
+                  message: 'PDF generation skipped because a duplicate request was already in progress.',
+                  responseSummary: {
+                    outcome: result.outcome,
+                    attempt
+                  }
+                });
+                return;
+              }
               completePdfAudit(auditCtx, {
                 message: 'PDF generated successfully.',
                 responseSummary: {
+                  outcome: result?.outcome,
                   fileId: result?.fileId,
                   pdfBufferSize: result?.pdfBufferSize,
                   attempt
                 }
               });
-            }),
+            }).pipe(Effect.as(result)),
           onFailure: (error: PDFError) =>
             Effect.sync(() => {
               failPdfAudit(auditCtx, error, {
@@ -446,12 +470,7 @@ export namespace Services {
       };
 
       const runBackgroundRetries = (remainingRetries: number, nextAttempt: number): Effect.Effect<void, never> =>
-        remainingRetries <= 0
-          ? Effect.sync(() => {
-              sails.log.error(`PDFService::Max retries exhausted for ${oid}, no remaining retries.`);
-              closeParent('failed', new Error('Max retries exhausted'));
-            })
-          : Effect.gen(this, function* () {
+        Effect.gen(this, function* () {
               const retryIndex = maxRetries - remainingRetries;
               const delayMs = baseDelayMs * Math.pow(multiplier, retryIndex);
               yield* this.logWarn(`PDFService::Scheduling retry ${nextAttempt - 1} of ${maxRetries} for ${oid} in ${delayMs}ms`);
