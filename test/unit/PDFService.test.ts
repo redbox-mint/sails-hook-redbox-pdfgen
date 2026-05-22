@@ -5,6 +5,26 @@ const { clearPdfgenTestGlobals, installPdfgenTestGlobals } = require('../support
 
 const globalAny = global as any;
 
+async function waitForAssertion(assertion: () => void, timeoutMs = 250): Promise<void> {
+    const startedAt = Date.now();
+    let lastError: unknown;
+
+    while (Date.now() - startedAt < timeoutMs) {
+        try {
+            assertion();
+            return;
+        } catch (error) {
+            lastError = error;
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+    }
+
+    assertion();
+    if (lastError != null) {
+        throw lastError;
+    }
+}
+
 describe('PDFService Unit Tests', () => {
     let pdfService: any;
     let mockPage: any;
@@ -156,9 +176,9 @@ describe('PDFService Unit Tests', () => {
         expect(result).to.equal(record);
         expect(mockPage.goto.callCount).to.equal(1);
 
-        await new Promise((resolve) => setTimeout(resolve, 30));
-
-        expect(mockPage.goto.calledTwice).to.be.true;
+        await waitForAssertion(() => {
+            expect(mockPage.goto.calledTwice).to.be.true;
+        });
     });
 
     it('should await auth headers before navigation', async () => {
@@ -233,8 +253,9 @@ describe('PDFService Unit Tests', () => {
         });
 
         expect(result).to.equal(record);
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        expect(mockPage.goto.callCount).to.equal(2);
+        await waitForAssertion(() => {
+            expect(mockPage.goto.callCount).to.equal(2);
+        });
     });
 
     it('should omit PDFOptions path without mutating the provided options object', async () => {
@@ -289,9 +310,9 @@ describe('PDFService Unit Tests', () => {
         expect(result).to.equal(record);
         expect(mockPage.goto.callCount).to.equal(1);
 
-        await new Promise((resolve) => setTimeout(resolve, 30));
-
-        expect(mockPage.goto.callCount).to.equal(2);
+        await waitForAssertion(() => {
+            expect(mockPage.goto.callCount).to.equal(2);
+        });
         expect(globalAny.sails.log.warn.calledWithMatch(/Retry scheduled: true/)).to.be.true;
     });
 });

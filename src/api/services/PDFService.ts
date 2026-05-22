@@ -464,8 +464,14 @@ export namespace Services {
           return;
         }
         completePdfAudit(parentAuditCtx, {
-          message: 'PDF generation pipeline completed.',
-          responseSummary: { attemptsRun, finalStatus }
+          message: finalStatus === 'skipped'
+            ? 'PDF generation pipeline skipped.'
+            : 'PDF generation pipeline completed.',
+          responseSummary: {
+            attemptsRun,
+            finalStatus,
+            ...(error instanceof MissingTokenError ? { errorTag: error._tag } : {})
+          }
         });
       };
 

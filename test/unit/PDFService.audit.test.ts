@@ -11,6 +11,26 @@ type StubAuditService = {
     failAudit: sinon.SinonStub;
 };
 
+async function waitForAssertion(assertion: () => void, timeoutMs = 250): Promise<void> {
+    const startedAt = Date.now();
+    let lastError: unknown;
+
+    while (Date.now() - startedAt < timeoutMs) {
+        try {
+            assertion();
+            return;
+        } catch (error) {
+            lastError = error;
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+    }
+
+    assertion();
+    if (lastError != null) {
+        throw lastError;
+    }
+}
+
 function installAuditServiceStub(): StubAuditService {
     let nextId = 0;
     const startAudit = sinon.stub().callsFake((oid: string, action: string, opts?: any) => {
@@ -205,17 +225,48 @@ describe('PDFService Integration Audit', () => {
             observable.subscribe({ next: resolve, error: reject });
         });
 
-        await new Promise((resolve) => setTimeout(resolve, 20));
-
-        const parentFailure = auditStub.failAudit.getCalls().find((call: any) =>
-            call.args[0]?.integrationAction === 'generatePdfTrigger'
-        );
+        let parentFailure: any;
+        await waitForAssertion(() => {
+            parentFailure = auditStub.failAudit.getCalls().find((call: any) =>
+                call.args[0]?.integrationAction === 'generatePdfTrigger'
+            );
+            expect(parentFailure).to.exist;
+        });
         expect(parentFailure).to.exist;
         expect(parentFailure!.args[2].responseSummary.finalStatus).to.equal('failed');
         expect(parentFailure!.args[2].responseSummary.attemptsRun).to.equal(1);
         expect(auditStub.completeAudit.getCalls().some((call: any) =>
             call.args[1]?.message === 'PDF generation pipeline completed.' &&
             call.args[1]?.responseSummary?.finalStatus === 'failed'
+        )).to.be.false;
+    });
+
+    it('marks the parent audit as skipped when PDF generation is disabled by a missing token', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = { token: '' };
+
+        const observable = pdfService.createPDF('oid-missing-token', record, options, {});
+        await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
+
+        let parentSkipped: any;
+        await waitForAssertion(() => {
+            parentSkipped = auditStub.completeAudit.getCalls().find((call: any) =>
+                call.args[0]?.integrationAction === 'generatePdfTrigger' &&
+                call.args[1]?.responseSummary?.finalStatus === 'skipped'
+            );
+            expect(parentSkipped).to.exist;
+        });
+
+        expect(parentSkipped!.args[1].message).to.equal('PDF generation pipeline skipped.');
+        expect(parentSkipped!.args[1].responseSummary).to.deep.equal({
+            attemptsRun: 1,
+            finalStatus: 'skipped',
+            errorTag: 'MissingTokenError'
+        });
+        expect(auditStub.failAudit.getCalls().some((call: any) =>
+            call.args[0]?.integrationAction === 'generatePdfTrigger'
         )).to.be.false;
     });
 
@@ -253,10 +304,10 @@ describe('PDFService Integration Audit', () => {
             observable.subscribe({ next: resolve, error: reject });
         });
 
-        // wait long enough for the success path to drain the event loop
-        await new Promise((resolve) => setTimeout(resolve, 20));
-
-        expect(auditStub.startAudit.callCount).to.equal(2);
+        await waitForAssertion(() => {
+            expect(auditStub.startAudit.callCount).to.equal(2);
+            expect(auditStub.completeAudit.callCount).to.equal(2);
+        });
         const [parentOid, parentAction, parentOpts] = auditStub.startAudit.getCall(0).args;
         const [childOid, childAction, childOpts] = auditStub.startAudit.getCall(1).args;
 
@@ -270,8 +321,6 @@ describe('PDFService Integration Audit', () => {
         expect(childOpts.parentSpanId).to.equal('span-1');
         expect(childOpts.traceId).to.equal('trace-1');
 
-        // Both the child and the parent should be completed
-        expect(auditStub.completeAudit.callCount).to.equal(2);
         const finalParentResult = auditStub.completeAudit.getCalls().find((call: any) =>
             call.args[1]?.message === 'PDF generation pipeline completed.'
         );
@@ -288,8 +337,10 @@ describe('PDFService Integration Audit', () => {
         await new Promise((resolve, reject) => {
             observable.subscribe({ next: resolve, error: reject });
         });
-        await new Promise((resolve) => setTimeout(resolve, 20));
 
+        await waitForAssertion(() => {
+            expect(auditStub.startAudit.called).to.be.true;
+        });
         const [, , parentOpts] = auditStub.startAudit.getCall(0).args;
         expect(parentOpts.triggeredBy).to.equal('PDFService-CreatePDF-job');
     });
@@ -306,11 +357,12 @@ describe('PDFService Integration Audit', () => {
             observable.subscribe({ next: resolve, error: reject });
         });
 
-        // Wait for the background retry to drain
-        await new Promise((resolve) => setTimeout(resolve, 60));
+        await waitForAssertion(() => {
+            expect(auditStub.startAudit.callCount).to.equal(3);
+            expect(auditStub.failAudit.callCount).to.equal(1);
+            expect(auditStub.completeAudit.callCount).to.equal(2);
+        }, 500);
 
-        // 1 parent + 2 children (initial + 1 retry)
-        expect(auditStub.startAudit.callCount).to.equal(3);
         expect(auditStub.startAudit.getCall(0).args[1]).to.equal('generatePdfTrigger');
         expect(auditStub.startAudit.getCall(1).args[1]).to.equal('generatePdf');
         expect(auditStub.startAudit.getCall(2).args[1]).to.equal('generatePdf');
@@ -320,9 +372,6 @@ describe('PDFService Integration Audit', () => {
         expect(auditStub.startAudit.getCall(1).args[2].traceId).to.equal(parentTrace);
         expect(auditStub.startAudit.getCall(2).args[2].traceId).to.equal(parentTrace);
 
-        // First child fails, second child succeeds, parent completes once retry drains
-        expect(auditStub.failAudit.callCount).to.equal(1);
-        expect(auditStub.completeAudit.callCount).to.equal(2);
         const parentFinal = auditStub.completeAudit.getCalls().find((call: any) =>
             call.args[1]?.message === 'PDF generation pipeline completed.'
         );
