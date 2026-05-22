@@ -117,6 +117,63 @@ describe('PDFService Unit Tests', () => {
         expect(mockPage.goto.calledTwice).to.be.true;
     });
 
+    it('should await auth headers before navigation', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        let releaseHeaders: (() => void) | undefined;
+        let markHeadersStarted: (() => void) | undefined;
+        const headersStarted = new Promise<void>((resolve) => {
+            markHeadersStarted = resolve;
+        });
+
+        mockPage.setExtraHTTPHeaders.callsFake(() => new Promise<void>((resolve) => {
+            markHeadersStarted?.();
+            releaseHeaders = resolve;
+        }));
+
+        const service: any = pdfService;
+        const generation = Effect.runPromise(service.generatePDF('oid-1', record, {}));
+
+        await headersStarted;
+
+        expect(mockPage.setExtraHTTPHeaders.calledOnce).to.be.true;
+        expect(mockPage.goto.called).to.be.false;
+
+        releaseHeaders?.();
+        await generation;
+
+        expect(mockPage.goto.calledOnce).to.be.true;
+    });
+
+    it('should skip duplicate generation for the same URL while work is in progress', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        let releaseHeaders: (() => void) | undefined;
+        let markHeadersStarted: (() => void) | undefined;
+        const headersStarted = new Promise<void>((resolve) => {
+            markHeadersStarted = resolve;
+        });
+
+        mockPage.setExtraHTTPHeaders.callsFake(() => new Promise<void>((resolve) => {
+            markHeadersStarted?.();
+            releaseHeaders = resolve;
+        }));
+
+        const service: any = pdfService;
+        const firstGeneration = Effect.runPromise(service.generatePDF('oid-1', record, {}));
+
+        await headersStarted;
+
+        await Effect.runPromise(service.generatePDF('oid-1', record, {}));
+
+        expect(mockBrowser.newPage.calledOnce).to.be.true;
+        expect(mockPage.goto.called).to.be.false;
+        expect(globalAny.sails.log.warn.calledWithMatch(/already in progress/)).to.be.true;
+
+        releaseHeaders?.();
+        await firstGeneration;
+
+        expect(mockPage.goto.calledOnce).to.be.true;
+    });
+
     it('should stop retrying beyond maxRetries', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {

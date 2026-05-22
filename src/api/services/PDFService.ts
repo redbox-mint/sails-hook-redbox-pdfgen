@@ -39,7 +39,7 @@ export namespace Services {
    */
   export class PDF extends services.Core.Service {
 
-    private processMap: Map<string, boolean> = new Map<string, boolean>();
+    private processMap: Set<string> = new Set<string>();
     private DatastreamService!: DatastreamService;
     protected _exportedMethods: any = [
       'createPDF',
@@ -151,6 +151,26 @@ export namespace Services {
           return yield* Effect.fail(new MissingTokenError({ oid }));
         }
 
+        const claimedRequest = yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            if (this.processMap.has(currentURL)) {
+              return false;
+            }
+            this.processMap.add(currentURL);
+            return true;
+          }),
+          (claimed) => claimed
+            ? Effect.sync(() => {
+                this.processMap.delete(currentURL);
+              })
+            : Effect.void
+        );
+
+        if (!claimedRequest) {
+          yield* this.logWarn(`PDFService::PDF generation already in progress for ${currentURL}, skipping duplicate request.`);
+          return;
+        }
+
         const tmpUserDataDir = yield* Effect.acquireRelease(
           Effect.tryPromise({
             try: () => fs.mkdtemp(path.join(os.tmpdir(), 'pdfgen')),
@@ -192,10 +212,11 @@ export namespace Services {
           (instance) => Effect.promise(() => instance.close()).pipe(Effect.catchAll(() => Effect.void))
         );
 
-        yield* Effect.sync(() => {
-          page.setExtraHTTPHeaders({
+        yield* Effect.tryPromise({
+          try: () => Promise.resolve(page.setExtraHTTPHeaders({
             Authorization: 'Bearer ' + token
-          });
+          })),
+          catch: (cause) => new BrowserError({ oid, url: currentURL, cause })
         });
 
         const enableLogging = this.getOption(brand, options, 'enableChromeLogging');
@@ -216,14 +237,9 @@ export namespace Services {
           });
         }
 
-        yield* Effect.addFinalizer(() => Effect.sync(() => {
-          this.processMap.delete(currentURL);
-        }));
-
         yield* Effect.sync(() => {
           sails.log.verbose(`PDFService::sourceUrlBase ${sourceUrlBase}`);
           sails.log.verbose(`PDFService::sails.config.pdfgen.appUrlOverride ${pdfgenAppUrlOverride}`);
-          this.processMap.set(currentURL, true);
         });
 
         yield* this.logDebug(`PDFService::Chromium loading page: ${currentURL}`);

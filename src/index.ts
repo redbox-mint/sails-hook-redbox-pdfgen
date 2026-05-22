@@ -1,7 +1,7 @@
 import '@researchdatabox/redbox-core';
 import { defineRedboxHook, type HookRegistrationMap } from '@researchdatabox/redbox-core';
 import * as path from 'path';
-import { agendaQueue } from './config/agendaQueue.js';
+import { agendaQueue, mergeAgendaQueueJobs } from './config/agendaQueue.js';
 import { pdfgen } from './config/pdfgen.js';
 
 export { };
@@ -9,11 +9,17 @@ export { };
 const hook = defineRedboxHook({
   initialize(sails, cb) {
     const configService = (sails.services as Record<string, any>)?.configservice;
+    const existingAgendaQueueConfig = sails.config.agendaQueue;
     if (configService?.mergeHookConfig) {
       configService.mergeHookConfig('@researchdatabox/sails-hook-redbox-pdfgen', sails.config);
     } else {
       sails.log.warn('sails-hook-redbox-pdfgen: ConfigService not available, skipping service loading');
     }
+
+    sails.config.agendaQueue = {
+      ...sails.config.agendaQueue,
+      jobs: mergeAgendaQueueJobs(existingAgendaQueueConfig?.jobs, agendaQueue.jobs)
+    };
 
     sails.after('hook:moduleloader:loaded', () => {
       try {
@@ -46,7 +52,6 @@ const hook = defineRedboxHook({
   },
   registerRedboxConfig(): HookRegistrationMap {
     return {
-      agendaQueue,
       pdfgen
     };
   },
