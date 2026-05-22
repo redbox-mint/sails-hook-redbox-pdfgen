@@ -25,9 +25,15 @@ export class InvalidReadinessOptionError extends Data.TaggedError('InvalidReadin
   option: string;
 }> {}
 
+export class MissingBrandError extends Data.TaggedError('MissingBrandError')<{
+  oid: string;
+  brandId: unknown;
+}> {}
+
 export type PDFError =
   | MissingTokenError
   | BrowserError
   | PDFRenderError
   | DatastreamSaveError
-  | InvalidReadinessOptionError;
+  | InvalidReadinessOptionError
+  | MissingBrandError;

@@ -88,6 +88,26 @@ describe('PDFService Unit Tests', () => {
         expect((exit as any).cause).to.exist;
     });
 
+    it('should return an error Observable when the record brand cannot be resolved', async () => {
+        globalAny.BrandingService.getBrandById.returns(null);
+
+        let observable: any;
+        expect(() => {
+            observable = pdfService.createPDF('oid-missing-brand', { metaMetadata: { brandId: 404 } }, {}, {});
+        }).to.not.throw();
+
+        const error = await new Promise((resolve, reject) => {
+            observable.subscribe({
+                next: () => reject(new Error('Expected createPDF to emit an error')),
+                error: resolve,
+                complete: () => reject(new Error('Expected createPDF to emit an error'))
+            });
+        });
+
+        expect((error as any)._tag).to.equal('MissingBrandError');
+        expect((error as any).brandId).to.equal(404);
+    });
+
     it('should fall back to networkIdle strategy if unknown strategy provided', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = { readinessStrategy: 'invalidStrategy' };
