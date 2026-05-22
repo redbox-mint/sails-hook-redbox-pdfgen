@@ -76,8 +76,7 @@ describe('PDFService Integration Audit', () => {
             process: () => ({ kill: sinon.stub() })
         };
 
-        const puppeteer = require('puppeteer');
-        sinon.stub(puppeteer, 'launch').resolves(mockBrowser);
+        sinon.stub(pdfService, 'launchBrowser').resolves(mockBrowser);
     });
 
     afterEach(() => {
@@ -324,5 +323,54 @@ describe('PDFService Integration Audit', () => {
         expect(auditStub.startAudit.called).to.be.false;
         expect(auditStub.completeAudit.called).to.be.false;
         expect(auditStub.failAudit.called).to.be.false;
+    });
+
+    it('still returns an Observable when the parent audit start throws', async () => {
+        auditStub.startAudit.throws(new Error('audit start unavailable'));
+
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {};
+
+        const observable = pdfService.createPDF('oid-parent-start-throws', record, options, {});
+        await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
+
+        expect(mockPage.goto.calledOnce).to.be.true;
+        expect(auditStub.startAudit.called).to.be.true;
+    });
+
+    it('still completes PDF generation when child audit completion throws', async () => {
+        auditStub.completeAudit.throws(new Error('audit complete unavailable'));
+
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {};
+
+        const service: any = pdfService;
+        await Effect.runPromise(
+            service.attemptPDFGeneration('oid-child-complete-throws', record, options, { name: 'default' }, 1)
+        );
+
+        expect(mockPage.goto.calledOnce).to.be.true;
+        expect(auditStub.completeAudit.calledOnce).to.be.true;
+    });
+
+    it('preserves the original PDF failure when audit failure recording throws', async () => {
+        auditStub.failAudit.throws(new Error('audit fail unavailable'));
+        mockPage.goto.rejects(new Error('navigation kaboom'));
+
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {};
+
+        const service: any = pdfService;
+        const exit = await Effect.runPromiseExit(
+            service.attemptPDFGeneration('oid-child-fail-throws', record, options, { name: 'default' }, 1)
+        );
+
+        expect(exit._tag).to.equal('Failure');
+        if (exit._tag === 'Failure') {
+            expect(String(exit.cause)).to.contain('BrowserError');
+        }
+        expect(auditStub.failAudit.calledOnce).to.be.true;
     });
 });

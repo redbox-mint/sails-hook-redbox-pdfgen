@@ -32,10 +32,10 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
-    "puppeteer": "24.39.1"
+    "puppeteer": "25.0.4"
   },
   "peerDependencies": {
-     "@researchdatabox/redbox-core-types": "0.0.1-beta.9474"
+    "@researchdatabox/redbox-core-types": "0.0.1-beta.9474"
   },
   "devDependencies": {
     "@researchdatabox/redbox-core": "0.0.1-beta.9474",

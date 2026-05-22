@@ -73,6 +73,9 @@ export namespace Services {
       return error._tag === 'BrowserError' || error._tag === 'PDFRenderError';
     }
 
+    protected launchBrowser(options: Parameters<typeof launch>[0]) {
+      return launch(options);
+    }
 
     private async waitForPageReady(page: any, brand: any, options: any): Promise<void> {
       const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
@@ -189,7 +192,7 @@ export namespace Services {
 
         const browser = yield* Effect.acquireRelease(
           Effect.tryPromise({
-            try: () => launch({
+            try: () => this.launchBrowser({
               headless: true,
               executablePath,
               args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`]

@@ -86,8 +86,8 @@ function getAuditService(): IntegrationAuditServiceShape | undefined {
 
 /**
  * Starts an audit span for a PDF action. Returns `null` if the global
- * `IntegrationAuditService` has not been wired up so callers can no-op
- * gracefully.
+ * `IntegrationAuditService` has not been wired up, or if the audit service
+ * itself fails, so PDF generation remains non-blocking.
  */
 export function startPdfAudit(
   oid: string,
@@ -107,7 +107,11 @@ export function startPdfAudit(
     mergedOpts.traceId = mergedOpts.traceId ?? parentAuditCtx.traceId;
     mergedOpts.parentSpanId = mergedOpts.parentSpanId ?? parentAuditCtx.spanId;
   }
-  return service.startAudit(oid, action, mergedOpts);
+  try {
+    return service.startAudit(oid, action, mergedOpts);
+  } catch {
+    return null;
+  }
 }
 
 export function completePdfAudit(
@@ -116,7 +120,11 @@ export function completePdfAudit(
 ): void {
   const service = getAuditService();
   if (typeof service?.completeAudit === 'function') {
-    service.completeAudit(ctx, details);
+    try {
+      service.completeAudit(ctx, details);
+    } catch {
+      // Audit failures must never turn a successful PDF generation into an error.
+    }
   }
 }
 
@@ -127,6 +135,10 @@ export function failPdfAudit(
 ): void {
   const service = getAuditService();
   if (typeof service?.failAudit === 'function') {
-    service.failAudit(ctx, error, details);
+    try {
+      service.failAudit(ctx, error, details);
+    } catch {
+      // The original PDF error is the one callers should observe.
+    }
   }
 }

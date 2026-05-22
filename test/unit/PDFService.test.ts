@@ -47,8 +47,7 @@ describe('PDFService Unit Tests', () => {
             process: () => ({ kill: sinon.stub() })
         };
 
-        const puppeteer = require('puppeteer');
-        sinon.stub(puppeteer, 'launch').resolves(mockBrowser);
+        sinon.stub(pdfService, 'launchBrowser').resolves(mockBrowser);
     });
 
     afterEach(() => {
