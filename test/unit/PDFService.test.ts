@@ -10,12 +10,15 @@ describe('PDFService Unit Tests', () => {
     let mockPage: any;
     let mockBrowser: any;
     let storageDiskPutStub: any;
+    let storageDiskDeleteStub: any;
     let addDatastreamStub: any;
 
     beforeEach(function () {
         this.timeout(10000);
         installPdfgenTestGlobals();
-        storageDiskPutStub = globalAny.sails.services.storagemanagerservice.stagingDisk().put;
+        const stagingDisk = globalAny.sails.services.storagemanagerservice.stagingDisk();
+        storageDiskPutStub = stagingDisk.put;
+        storageDiskDeleteStub = stagingDisk.delete;
         addDatastreamStub = globalAny.sails.services.standarddatastreamservice.addDatastream;
 
         const compiledServicePath = require.resolve('../../dist/api/services/PDFService.js');
@@ -120,6 +123,21 @@ describe('PDFService Unit Tests', () => {
         expect(JSON.stringify((exit as any).cause)).to.contain('InvalidReadinessOptionError');
         expect(mockPage.waitForSelector.called).to.be.false;
         expect(mockPage.goto.called).to.be.false;
+    });
+
+    it('should clean up the staged PDF when addDatastream fails', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        addDatastreamStub.rejects(new Error('datastream save failed'));
+
+        const service: any = pdfService;
+        const exit = await Effect.runPromiseExit(
+            service.attemptPDFGeneration('oid-1', record, {}, { name: 'default' }, 1)
+        );
+
+        expect(exit._tag).to.equal('Failure');
+        expect(storageDiskPutStub.calledOnce).to.equal(true);
+        expect(storageDiskDeleteStub.calledOnce).to.equal(true);
+        expect(storageDiskDeleteStub.firstCall.args[0]).to.match(/oid-1.*\.pdf$/);
     });
 
     it('should retry transient failures in the background retry loop', async () => {

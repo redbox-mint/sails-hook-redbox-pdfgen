@@ -5,6 +5,7 @@ type LogFn = (...args: unknown[]) => void;
 
 function installPdfgenTestGlobals(overrides: Record<string, unknown> = {}): void {
   const storageDiskPutStub = sinon.stub().resolves();
+  const storageDiskDeleteStub = sinon.stub().resolves();
   const addDatastreamStub = sinon.stub().resolves({});
 
   (global as any)._ = _;
@@ -19,7 +20,8 @@ function installPdfgenTestGlobals(overrides: Record<string, unknown> = {}): void
     services: {
       storagemanagerservice: {
         stagingDisk: () => ({
-          put: storageDiskPutStub
+          put: storageDiskPutStub,
+          delete: storageDiskDeleteStub
         })
       },
       standarddatastreamservice: {

@@ -145,6 +145,34 @@ describe('PDFService Integration Audit', () => {
         expect(failDetails.responseSummary.cause).to.equal('navigation kaboom');
     });
 
+    it('records a child audit failure when readiness config validation fails', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {
+            readinessStrategy: 'selector',
+            waitForSelector: '   '
+        };
+
+        const service: any = pdfService;
+        const exit = await Effect.runPromiseExit(
+            service.attemptPDFGeneration('oid-invalid-readiness', record, options, { name: 'default' }, 1)
+        );
+
+        expect(exit._tag).to.equal('Failure');
+        expect(auditStub.startAudit.calledOnce).to.be.true;
+        expect(auditStub.completeAudit.called).to.be.false;
+        expect(auditStub.failAudit.calledOnce).to.be.true;
+
+        const [, failedError, failDetails] = auditStub.failAudit.getCall(0).args;
+        expect(failedError._tag).to.equal('InvalidReadinessOptionError');
+        expect(failDetails.message).to.equal('PDF generation failed.');
+        expect(failDetails.responseSummary).to.deep.include({
+            errorTag: 'InvalidReadinessOptionError',
+            url: 'http://localhost:1500/default/rdmp/record/view/oid-invalid-readiness',
+            attempt: 1
+        });
+        expect(mockPage.goto.called).to.be.false;
+    });
+
     it('marks the parent audit as failed when retries are exhausted with maxRetries set to zero', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = { maxRetries: 0, retryDelayMs: 1 };

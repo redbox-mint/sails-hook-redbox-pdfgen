@@ -133,21 +133,21 @@ export namespace Services {
       const readinessStrategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
       const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
 
-      if (readinessStrategy === 'selector' || readinessStrategy === 'networkIdle+selector') {
-        const waitForSelector = this.getOption(brand, options, 'waitForSelector');
-        if (typeof waitForSelector !== 'string' || waitForSelector.trim() === '') {
-          return Effect.fail(new InvalidReadinessOptionError({ oid, strategy: readinessStrategy, option: 'waitForSelector' }));
-        }
-      }
-
-      if (readinessStrategy === 'jsFlag') {
-        const waitForFunction = this.getOption(brand, options, 'waitForFunction');
-        if (typeof waitForFunction !== 'string' || waitForFunction.trim() === '') {
-          return Effect.fail(new InvalidReadinessOptionError({ oid, strategy: readinessStrategy, option: 'waitForFunction' }));
-        }
-      }
-
       const work = Effect.scoped(Effect.gen(this, function* () {
+        if (readinessStrategy === 'selector' || readinessStrategy === 'networkIdle+selector') {
+          const waitForSelector = this.getOption(brand, options, 'waitForSelector');
+          if (typeof waitForSelector !== 'string' || waitForSelector.trim() === '') {
+            return yield* Effect.fail(new InvalidReadinessOptionError({ oid, strategy: readinessStrategy, option: 'waitForSelector' }));
+          }
+        }
+
+        if (readinessStrategy === 'jsFlag') {
+          const waitForFunction = this.getOption(brand, options, 'waitForFunction');
+          if (typeof waitForFunction !== 'string' || waitForFunction.trim() === '') {
+            return yield* Effect.fail(new InvalidReadinessOptionError({ oid, strategy: readinessStrategy, option: 'waitForFunction' }));
+          }
+        }
+
         yield* Effect.sync(() => sails.log.verbose(`PDFService::Creating PDF for: ${oid} (Attempt ${attempt})`));
 
         const token = this.getOption(brand, options, 'token');
@@ -297,7 +297,14 @@ export namespace Services {
         yield* Effect.tryPromise({
           try: () => this.DatastreamService.addDatastream(oid, datastream, stagingDisk),
           catch: (cause) => new DatastreamSaveError({ oid, cause })
-        });
+        }).pipe(
+          Effect.catchAll((error) =>
+            Effect.promise(() => stagingDisk.delete(fileId)).pipe(
+              Effect.catchAll(() => Effect.void),
+              Effect.zipRight(Effect.fail(error))
+            )
+          )
+        );
 
         yield* this.logDebug(`PDFService::Saved PDF to storage: ${oid}`);
 
