@@ -58,7 +58,9 @@ describe('PDFService Unit Tests', () => {
         delete globalAny.StorageManagerService;
 
         const service: any = pdfService;
-        const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', { metaMetadata: { brandId: 1 } }, {}));
+        const exit = await Effect.runPromiseExit(
+            service.attemptPDFGeneration('oid-1', { metaMetadata: { brandId: 1 } }, {}, { name: 'default' }, 1)
+        );
 
         expect(exit._tag).to.equal('Failure');
         expect((exit as any).cause).to.exist;
@@ -69,7 +71,7 @@ describe('PDFService Unit Tests', () => {
         const options = { readinessStrategy: 'invalidStrategy' };
 
         const service: any = pdfService;
-        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+        await Effect.runPromise(service.attemptPDFGeneration('oid-1', record, options, { name: 'default' }, 1));
 
         expect(mockPage.waitForNetworkIdle.called).to.be.true;
         expect(globalAny.sails.log.warn.calledWithMatch(/Unknown readinessStrategy/)).to.be.true;
@@ -83,7 +85,7 @@ describe('PDFService Unit Tests', () => {
         };
 
         const service: any = pdfService;
-        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+        await Effect.runPromise(service.attemptPDFGeneration('oid-1', record, options, { name: 'default' }, 1));
 
         expect(mockPage.waitForSelector.calledWith('#ready')).to.be.true;
         expect(mockPage.waitForNetworkIdle.called).to.be.false;
@@ -97,7 +99,7 @@ describe('PDFService Unit Tests', () => {
         };
 
         const service: any = pdfService;
-        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+        await Effect.runPromise(service.attemptPDFGeneration('oid-1', record, options, { name: 'default' }, 1));
 
         expect(mockPage.waitForFunction.calledWith('window.isReady === true')).to.be.true;
     });
@@ -110,7 +112,9 @@ describe('PDFService Unit Tests', () => {
         };
 
         const service: any = pdfService;
-        const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', record, options));
+        const exit = await Effect.runPromiseExit(
+            service.attemptPDFGeneration('oid-1', record, options, { name: 'default' }, 1)
+        );
 
         expect(exit._tag).to.equal('Failure');
         expect(JSON.stringify((exit as any).cause)).to.contain('InvalidReadinessOptionError');
@@ -154,7 +158,7 @@ describe('PDFService Unit Tests', () => {
         }));
 
         const service: any = pdfService;
-        const generation = Effect.runPromise(service.generatePDF('oid-1', record, {}));
+        const generation = Effect.runPromise(service.attemptPDFGeneration('oid-1', record, {}, { name: 'default' }, 1));
 
         await headersStarted;
 
@@ -181,11 +185,11 @@ describe('PDFService Unit Tests', () => {
         }));
 
         const service: any = pdfService;
-        const firstGeneration = Effect.runPromise(service.generatePDF('oid-1', record, {}));
+        const firstGeneration = Effect.runPromise(service.attemptPDFGeneration('oid-1', record, {}, { name: 'default' }, 1));
 
         await headersStarted;
 
-        await Effect.runPromise(service.generatePDF('oid-1', record, {}));
+        await Effect.runPromise(service.attemptPDFGeneration('oid-1', record, {}, { name: 'default' }, 1));
 
         expect(mockBrowser.newPage.calledOnce).to.be.true;
         expect(mockPage.goto.called).to.be.false;
@@ -232,7 +236,7 @@ describe('PDFService Unit Tests', () => {
         };
 
         const service: any = pdfService;
-        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+        await Effect.runPromise(service.attemptPDFGeneration('oid-1', record, options, { name: 'default' }, 1));
 
         expect(mockPage.pdf.calledOnce).to.equal(true);
         const pdfOptions = mockPage.pdf.firstCall.args[0];
