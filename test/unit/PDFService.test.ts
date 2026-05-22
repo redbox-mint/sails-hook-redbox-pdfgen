@@ -102,6 +102,22 @@ describe('PDFService Unit Tests', () => {
         expect(mockPage.waitForFunction.calledWith('window.isReady === true')).to.be.true;
     });
 
+    it('should fail fast when selector strategy is missing a selector', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {
+            readinessStrategy: 'selector',
+            waitForSelector: '   '
+        };
+
+        const service: any = pdfService;
+        const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', record, options));
+
+        expect(exit._tag).to.equal('Failure');
+        expect(JSON.stringify((exit as any).cause)).to.contain('InvalidReadinessOptionError');
+        expect(mockPage.waitForSelector.called).to.be.false;
+        expect(mockPage.goto.called).to.be.true;
+    });
+
     it('should retry transient failures in the blocking effect', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {

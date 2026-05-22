@@ -145,6 +145,29 @@ describe('PDFService Integration Audit', () => {
         expect(failDetails.responseSummary.cause).to.equal('navigation kaboom');
     });
 
+    it('marks the parent audit as failed when retries are exhausted with maxRetries set to zero', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = { maxRetries: 0, retryDelayMs: 1 };
+
+        mockPage.goto.rejects(new Error('navigation kaboom'));
+
+        const service: any = pdfService;
+        await Effect.runPromise(service.createPDF('oid-no-retries', record, options, {}));
+
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        const parentFailure = auditStub.failAudit.getCalls().find((call: any) =>
+            call.args[0]?.integrationAction === 'generatePdfTrigger'
+        );
+        expect(parentFailure).to.exist;
+        expect(parentFailure!.args[2].responseSummary.finalStatus).to.equal('failed');
+        expect(parentFailure!.args[2].responseSummary.attemptsRun).to.equal(1);
+        expect(auditStub.completeAudit.getCalls().some((call: any) =>
+            call.args[1]?.message === 'PDF generation pipeline completed.' &&
+            call.args[1]?.responseSummary?.finalStatus === 'failed'
+        )).to.be.false;
+    });
+
     it('inherits traceId and parentSpanId from a supplied parent context', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {};

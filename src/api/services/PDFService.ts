@@ -16,6 +16,7 @@ import type { PdfgenConfig } from '../../config/pdfgen';
 import {
   BrowserError,
   DatastreamSaveError,
+  InvalidReadinessOptionError,
   MissingTokenError,
   PDFError,
   PDFRenderError
@@ -86,6 +87,20 @@ export namespace Services {
     private async waitForPageReady(page: any, brand: any, options: any): Promise<void> {
       const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
       const timeout = this.getOption(brand, options, 'readinessTimeout', 60000);
+
+      if (strategy === 'selector' || strategy === 'networkIdle+selector') {
+        const waitForSelector = this.getOption(brand, options, 'waitForSelector');
+        if (typeof waitForSelector !== 'string' || waitForSelector.trim() === '') {
+          throw new InvalidReadinessOptionError({ oid: '', strategy, option: 'waitForSelector' });
+        }
+      }
+
+      if (strategy === 'jsFlag') {
+        const waitForFunction = this.getOption(brand, options, 'waitForFunction');
+        if (typeof waitForFunction !== 'string' || waitForFunction.trim() === '') {
+          throw new InvalidReadinessOptionError({ oid: '', strategy, option: 'waitForFunction' });
+        }
+      }
 
       switch (strategy) {
         case 'networkIdle':
@@ -448,7 +463,10 @@ export namespace Services {
 
       const runBackgroundRetries = (remainingRetries: number, nextAttempt: number): Effect.Effect<void, never> =>
         remainingRetries <= 0
-          ? Effect.sync(() => closeParent('failed'))
+          ? Effect.sync(() => {
+              sails.log.error(`PDFService::Max retries exhausted for ${oid}, no remaining retries.`);
+              closeParent('failed', new Error('Max retries exhausted'));
+            })
           : Effect.gen(this, function* () {
               const retryIndex = maxRetries - remainingRetries;
               const delayMs = baseDelayMs * Math.pow(multiplier, retryIndex);
@@ -479,6 +497,12 @@ export namespace Services {
           onSuccess: () => Effect.sync(() => closeParent('success')),
           onFailure: (error: PDFError) => {
             if (this.isRetryable(error)) {
+              if (maxRetries <= 0) {
+                return Effect.sync(() => {
+                  sails.log.error(`PDFService::Max retries exhausted for ${oid}, no remaining retries.`, error);
+                  closeParent('failed', error);
+                });
+              }
               return Effect.gen(this, function* () {
                 yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true. Error: ${error?.name} - ${error?.message}`);
                 yield* Effect.forkDaemon(runBackgroundRetries(maxRetries, 2));

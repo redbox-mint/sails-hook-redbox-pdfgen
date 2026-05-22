@@ -15,7 +15,7 @@
   "scripts": {
     "compile": "node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-tsc.js -p tsconfig.json",
     "prepack": "npm run compile",
-    "test": "npm run test:unit && npm run test:integration:mocha",
+    "test": "npm run test:unit && npm run test:integration:bruno",
     "test:unit": "npm run compile && TS_NODE_PROJECT=./test/tsconfig.json node ./node_modules/@researchdatabox/redbox-dev-tools/bin/run-hook-mocha.js --config ./test/unit/.mocharc.cjs ./test/unit",
     "test:integration:bruno": "npm run compile && docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml up --build --menu=false --abort-on-container-exit --exit-code-from bruno",
     "test:integration:bruno:clean": "docker compose -f ./support/api-integration-testing/docker-compose.bruno.yml down -v --remove-orphans --timeout 180",

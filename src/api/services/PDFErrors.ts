@@ -25,9 +25,16 @@ export class DatastreamSaveError extends Data.TaggedError('DatastreamSaveError')
   cause: unknown;
 }> {}
 
+export class InvalidReadinessOptionError extends Data.TaggedError('InvalidReadinessOptionError')<{
+  oid: string;
+  strategy: string;
+  option: string;
+}> {}
+
 export type PDFError =
   | MissingServiceError
   | MissingTokenError
   | BrowserError
   | PDFRenderError
-  | DatastreamSaveError;
+  | DatastreamSaveError
+  | InvalidReadinessOptionError;
