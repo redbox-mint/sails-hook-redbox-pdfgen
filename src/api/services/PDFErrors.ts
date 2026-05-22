@@ -1,10 +1,4 @@
 import { Data } from 'effect';
-
-export class MissingServiceError extends Data.TaggedError('MissingServiceError')<{
-  oid: string;
-  service: string;
-}> {}
-
 export class MissingTokenError extends Data.TaggedError('MissingTokenError')<{
   oid: string;
 }> {}
@@ -32,7 +26,6 @@ export class InvalidReadinessOptionError extends Data.TaggedError('InvalidReadin
 }> {}
 
 export type PDFError =
-  | MissingServiceError
   | MissingTokenError
   | BrowserError
   | PDFRenderError

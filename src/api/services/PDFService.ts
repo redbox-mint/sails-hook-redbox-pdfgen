@@ -11,7 +11,7 @@ import {
   Datastream,
   DatastreamService
 } from '@researchdatabox/redbox-core';
-import { Duration, Effect, Schedule } from 'effect';
+import { Duration, Effect } from 'effect';
 import type { PdfgenConfig } from '../../config/pdfgen';
 import {
   BrowserError,
@@ -71,16 +71,6 @@ export namespace Services {
 
     private isRetryable(error: PDFError): boolean {
       return error._tag === 'BrowserError' || error._tag === 'PDFRenderError';
-    }
-
-    private buildRetrySchedule(brand: any, options: any) {
-      const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
-      const baseDelayMs = this.getOption(brand, options, 'retryDelayMs', 5000);
-      const multiplier = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
-
-      return Schedule.recurs(maxRetries).pipe(
-        Schedule.addDelay((attempt) => Duration.millis(baseDelayMs * Math.pow(multiplier, Number(attempt))))
-      );
     }
 
 

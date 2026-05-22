@@ -32,20 +32,13 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
-    "effect": "3.21.0",
-    "luxon": "3.7.2",
     "puppeteer": "24.39.1"
   },
   "peerDependencies": {
-    "@researchdatabox/redbox-core": "0.0.1-beta.9022"
+     "@researchdatabox/redbox-core-types": "0.0.1-beta.9474"
   },
   "devDependencies": {
-    "@researchdatabox/redbox-core": "0.0.1-beta.9022",
-    "@researchdatabox/redbox-dev-tools": "0.0.1-beta.9020",
-    "@types/luxon": "^3.7.1",
-    "@types/mocha": "10.0.10",
-    "@types/node": "24.12.2",
-    "@types/sinon": "21.0.0",
-    "sinon": "21.0.2"
+    "@researchdatabox/redbox-core": "0.0.1-beta.9474",
+    "@researchdatabox/redbox-dev-tools": "0.0.1-beta.9474"
   }
 }
