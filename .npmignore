@@ -44,7 +44,6 @@ Thumbs.db
 support/
 test/
 src/
-!src/api/configmodels/PDFGenConfig.ts
 .dockerignore
 .editorconfig
 .gitignore

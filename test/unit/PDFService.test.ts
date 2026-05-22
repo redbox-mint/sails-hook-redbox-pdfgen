@@ -118,7 +118,7 @@ describe('PDFService Unit Tests', () => {
         expect(mockPage.goto.called).to.be.false;
     });
 
-    it('should retry transient failures in the blocking effect', async () => {
+    it('should retry transient failures in the background retry loop', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {
             retryDelayMs: 10
@@ -127,8 +127,15 @@ describe('PDFService Unit Tests', () => {
         mockPage.goto.onFirstCall().rejects(new Error('Navigation timeout'));
         mockPage.goto.onSecondCall().resolves();
 
-        const service: any = pdfService;
-        await Effect.runPromise(service.generatePDF('oid-1', record, options));
+        const observable = pdfService.createPDF('oid-1', record, options, {});
+        const result = await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
+
+        expect(result).to.equal(record);
+        expect(mockPage.goto.callCount).to.equal(1);
+
+        await new Promise((resolve) => setTimeout(resolve, 30));
 
         expect(mockPage.goto.calledTwice).to.be.true;
     });
@@ -190,7 +197,7 @@ describe('PDFService Unit Tests', () => {
         expect(mockPage.goto.calledOnce).to.be.true;
     });
 
-    it('should stop retrying beyond maxRetries', async () => {
+    it('should stop background retrying beyond maxRetries', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         const options = {
             maxRetries: 1,
@@ -199,10 +206,13 @@ describe('PDFService Unit Tests', () => {
 
         mockPage.goto.rejects(new Error('Navigation timeout'));
 
-        const service: any = pdfService;
-        const exit = await Effect.runPromiseExit(service.generatePDF('oid-1', record, options));
+        const observable = pdfService.createPDF('oid-1', record, options, {});
+        const result = await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
 
-        expect(exit._tag).to.equal('Failure');
+        expect(result).to.equal(record);
+        await new Promise((resolve) => setTimeout(resolve, 30));
         expect(mockPage.goto.callCount).to.equal(2);
     });
 
