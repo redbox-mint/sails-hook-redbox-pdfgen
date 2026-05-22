@@ -151,8 +151,10 @@ describe('PDFService Integration Audit', () => {
 
         mockPage.goto.rejects(new Error('navigation kaboom'));
 
-        const service: any = pdfService;
-        await Effect.runPromise(service.createPDF('oid-no-retries', record, options, {}));
+        const observable = pdfService.createPDF('oid-no-retries', record, options, {});
+        await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
 
         await new Promise((resolve) => setTimeout(resolve, 20));
 
