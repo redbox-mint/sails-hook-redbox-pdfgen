@@ -11,7 +11,7 @@ import {
   Datastream,
   DatastreamService
 } from '@researchdatabox/redbox-core';
-import { Duration, Effect } from 'effect';
+import { Cause, Duration, Effect } from 'effect';
 import type { PdfgenConfig } from '../../config/pdfgen';
 import {
   BrowserError,
@@ -145,7 +145,7 @@ export namespace Services {
       const baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
       const currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
       const readinessStrategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
-      const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', '');
+      const pdfPrefix = this.getOption(brand, options, 'pdfPrefix', 'pdf');
 
       const work = Effect.scoped(Effect.gen(this, function* () {
         if (readinessStrategy === 'selector' || readinessStrategy === 'networkIdle+selector') {
@@ -414,6 +414,20 @@ export namespace Services {
       return brand;
     }
 
+    private getBrandingEffect(record: any): Effect.Effect<any, MissingBrandError> {
+      return Effect.gen(this, function* () {
+        if (typeof BrandingService === 'undefined') {
+          return yield* Effect.die(new Error('BrandingService global is not available'));
+        }
+        const brandId = record?.metaMetadata?.brandId;
+        const brand = BrandingService.getBrandById(brandId);
+        if (brand == null) {
+          return yield* Effect.fail(new MissingBrandError({ oid: record?.oid, brandId }));
+        }
+        return brand;
+      });
+    }
+
     private getOption(branding: any, option: any, key: keyof PdfgenConfig | string, defaultValue: any = undefined) {
       const brandingConfig = sails.config.brandingAware(branding.name) as unknown as Record<string, unknown> & {
         pdfgen?: Record<string, unknown>;
@@ -430,8 +444,8 @@ export namespace Services {
 
 
     public createPDF(oid: string, record: any, options: any, user: any) {
-      const pdfPromise = Promise.resolve().then(() => {
-        const brand = this.getBranding({ ...record, oid });
+      const effect = Effect.gen(this, function* () {
+        const brand = yield* this.getBrandingEffect({ ...record, oid });
         const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
         const baseDelayMs = this.getOption(brand, options, 'retryDelayMs', 5000);
         const multiplier = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
@@ -511,7 +525,7 @@ export namespace Services {
             });
 
         attemptsRun += 1;
-        const effect = this.attemptPDFGeneration(oid, record, options, brand, 1, parentAuditCtx).pipe(
+        return yield* this.attemptPDFGeneration(oid, record, options, brand, 1, parentAuditCtx).pipe(
           Effect.matchEffect({
             onSuccess: () => Effect.sync(() => closeParent('success')),
             onFailure: (error: PDFError) => {
@@ -540,7 +554,13 @@ export namespace Services {
           Effect.as(record),
           Effect.withSpan('createPDF', { attributes: { oid, brand: brand.name } })
         );
-        return Effect.runPromise(effect);
+      });
+
+      const pdfPromise = Effect.runPromiseExit(effect).then((exit) => {
+        if (exit._tag === 'Success') {
+          return exit.value;
+        }
+        throw Cause.squash(exit.cause);
       });
 
       return from(pdfPromise);
