@@ -81,18 +81,19 @@ export namespace Services {
     }
 
     private isRetryable(error: PDFError): boolean {
-      return error._tag === 'BrowserError' || error._tag === 'PDFRenderError';
+      return error._tag === 'BrowserError'
+        || error._tag === 'PDFRenderError'
+        || error._tag === 'DatastreamSaveError';
     }
 
     protected launchBrowser(options: Parameters<typeof launch>[0]) {
       return launch(options);
     }
 
-    private async waitForPageReady(page: any, brand: any, options: any): Promise<void> {
-      const strategy = this.getOption(brand, options, 'readinessStrategy', 'networkIdle');
+    private async waitForPageReady(page: any, brand: any, options: any, readinessStrategy: string): Promise<void> {
       const timeout = this.getOption(brand, options, 'readinessTimeout', 60000);
 
-      switch (strategy) {
+      switch (readinessStrategy) {
         case 'networkIdle':
           await page.waitForNetworkIdle({
             idleTime: this.getOption(brand, options, 'networkIdleTime', 2000),
@@ -120,7 +121,7 @@ export namespace Services {
           );
           break;
         default:
-          sails.log.warn(`PDFService::Unknown readinessStrategy '${strategy}', falling back to networkIdle`);
+          sails.log.warn(`PDFService::Unknown readinessStrategy '${readinessStrategy}', falling back to networkIdle`);
           await page.waitForNetworkIdle({
             idleTime: this.getOption(brand, options, 'networkIdleTime', 2000),
             timeout
@@ -271,7 +272,7 @@ export namespace Services {
         }).pipe(Effect.withSpan('navigatePage', { attributes: { oid, attempt, url: currentURL } }));
 
         yield* Effect.tryPromise({
-          try: () => this.waitForPageReady(page, brand, options),
+          try: () => this.waitForPageReady(page, brand, options, readinessStrategy),
           catch: (cause) => new BrowserError({ oid, url: currentURL, cause })
         }).pipe(Effect.withSpan('waitForPageReady', {
           attributes: {
@@ -400,18 +401,6 @@ export namespace Services {
             }).pipe(Effect.zipRight(Effect.fail(error)))
         });
       });
-    }
-
-    private getBranding(record: any) {
-      if (typeof BrandingService === 'undefined') {
-        throw new Error('BrandingService global is not available');
-      }
-      const brandId = record?.metaMetadata?.brandId;
-      const brand = BrandingService.getBrandById(brandId);
-      if (brand == null) {
-        throw new MissingBrandError({ oid: record?.oid, brandId });
-      }
-      return brand;
     }
 
     private getBrandingEffect(record: any): Effect.Effect<any, MissingBrandError> {
