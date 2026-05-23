@@ -1,219 +1,72 @@
-# ReDBox Portal Record PDF Generation
+# redbox-hook--researchdatabox-sails-hook-redbox-pdfgen
 
-An installable hook for the ReDBox Portal to 
-add PDF generation functionality for records using Puppeteer.
+A generated ReDBox hook archetype.
 
-## Installation
+This project keeps its dependency declarations intentionally small:
 
-There are a few steps to install the pieces needed for generating PDF files.
+- `@researchdatabox/redbox-core` is the ReDBox runtime compatibility contract
+- `@researchdatabox/redbox-dev-tools` provides the shared compile and unit-test toolchain
+- direct `dependencies` are reserved for hook-owned runtime libraries only
+- the generated package versions assume `redbox-core` and `redbox-dev-tools` are installed from npm, not from a sibling `redbox-portal` checkout
 
-### Install package
+## Development
 
-In your redbox portal root folder run the command:
-
-```npm i @researchdatabox/sails-hook-redbox-pdfgen```
-
-### Install browser that puppeteer will control
-
-Modify your Dockerfile to install the puppeteer dependencies and 
-install the browser that puppeteer will control.
-
-The dependency of this package `puppeteer` will download known working versions of 
-Chrome for Testing and chrome-headless-shell.
-
-Add to your Dockerfile:
-
-```Dockerfile
-# As the 'root' user.
-# USER root
-
-# Install dependencies for Chrome for Testing.
-RUN apt-get update \
-    && apt-get install -y wget gnupg ca-certificates \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
-    && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] https://dl-ssl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends google-chrome-stable fonts-freefont-ttf libxss1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /opt/browsers \
-    && chown node:node /opt/browsers
-
-# As the 'node' user.
-# USER node
-
-# Copy the source files.
-# COPY --chown=node:node . <source-path-in-container>
-
-# Set the download path to a place that is stored in the container.
-ENV PUPPETEER_CACHE_DIR=/opt/browsers
-RUN cd <source-path-in-container> \
-    && npm install
+```bash
+npm install
+npm run compile
+npm run test:unit
 ```
 
-## Configuration
+## Record Hook Integration
 
-The service is designed to run using the record post-save trigger functionality.
-It has the following options:
+This hook registers the `PDFService-CreatePDF` Agenda job. Record lifecycle hooks should enqueue that job through the ReDBox queue trigger helper:
 
-### `waitForSelector`
-
-Required: yes
-
-A [css selector](https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagewaitforselectorselector-options) that puppeteer will wait for before generating the PDF. 
-Usually this is when the angular app has finished initialising and the selector "div#loading.hidden" will be satisfactory.
-If you have components that make AJAX calls after initialisation that you need to wait on then you may need to use a different selector.
-
-
-### `pdf-prefix`
-
-Required: yes
-
-The prefix of the filename that will be generated. PDFs will be stored as datastreams (attachments) 
-to the record with this parameter as a prefix followed by an ISO8601 datestring. 
-e.g. `<type>-pdf-201901021000.pdf`
-
-
-### `token`
-
-Required: yes
-
-An API access token that puppeteer will use to access the record. This needs to be generated for a user on the User Management page of the system.
-The user must also have appropriate roles set so that it has appropriate permissions to view the record.
-
-### `sourceUrlBase`
-
-Required: no
-
-Default: `/default/rdmp/record/view`
-
-Set the base source url.
-
-### `PDFOptions`
-
-Required: no
-
-Default: `{format: 'A4', printBackground: true}`
-
-Change the pdf attributes.
-
-## Example configuration
-
-
-Inject the API token via the hook's `index.js`.
-
-In `index.js`:
-
-```js
-module.exports = function (sails) {
-  return {
-    initialize: function (cb) {
-      if (!_.isUndefined(sails.config.auth.default.local.default.token) && !_.isEmpty(sails.config.auth.default.local.default.token)) {
-        const enabledTypes = ["<type>"];
-        for (let enabledType of enabledTypes) {
-          sails.log.verbose(`PDFService::Adding token for recordtype ${enabledType}`)
-          sails.config.recordtype[enabledType].hooks.onCreate.post[0].options.triggerConfiguration.options.token = sails.config.auth.default.local.default.token;
-          sails.config.recordtype[enabledType].hooks.onUpdate.post[0].options.triggerConfiguration.options.token = sails.config.auth.default.local.default.token;
-        }
-      }
-    }
-  };
-};
-```
-
-Set up the pdf generation task.
-
-In `config/agendaQueue.js`:
-
-```js
-module.exports.agendaQueue = {
-    jobs: [
-        {
-            name: 'PDFService-CreatePDF',
-            fnName: 'rdmpservice.queuedTriggerSubscriptionHandler',
-            options: {
-                lockLifetime: 120 * 1000, // 120 seconds max runtime
-                lockLimit: 1,
-                concurrency: 1
-            }
-        }
-    ]
-};
-```
-
-Configure when to run the pdf generation.
-
-In `config/<type>-recordtype.js`
-
-```js
-module.exports.recordtype = {
-  '<type>': {
-    "packageType": "<type>",
-    hooks: {
-      onCreate: {
-        post: [
-          {
-            function: 'sails.services.rdmpservice.queueTriggerCall',
-            options: {
-              jobName: 'PDFService-CreatePDF',
-              triggerConfiguration: {
-                function: 'sails.services.pdfservice.createPDF',
-                options: {
-                  waitForSelector: 'div#loading.hidden',
-                  pdfPrefix: '<type>-pdf',
-                  token: ''
-                }
-              }
-            }
-          },
-        ]
-      },
-      onUpdate: {
-        post: [
-          {
-            function: 'sails.services.rdmpservice.queueTriggerCall',
-            options: {
-              jobName: 'PDFService-CreatePDF',
-              triggerConfiguration: {
-                function: 'sails.services.pdfservice.createPDF',
-                options: {
-                  waitForSelector: 'div#loading.hidden',
-                  pdfPrefix: '<type>-pdf',
-                  token: ''
-                }
-              }
-            }
-          }
-        ]
+```ts
+{
+  function: 'sails.services.rdmpservice.queueTriggerCall',
+  options: {
+    jobName: 'PDFService-CreatePDF',
+    triggerConfiguration: {
+      function: 'sails.services.pdfservice.createPDF',
+      options: {
+        readinessStrategy: 'networkIdle',
+        pdfPrefix: 'rdmp-pdf'
       }
     }
   }
 }
 ```
 
-## Development
+Do not use `PDFService-CreatePDF` directly as a record hook `function`; ReDBox evaluates that field as JavaScript, while `PDFService-CreatePDF` is the queue job name.
+
+Local installs intentionally allow lifecycle scripts so native modules and other postinstall hooks can run. Use `npm install --ignore-scripts` only in controlled CI or container contexts where that trade-off is deliberate.
+
+For the docker-backed portal harness:
 
 ```bash
-# This will build the npm package for `sails-hook-redbox-pdfgen` and install it into the `rbportal`.
-# To start a redbox instance for local development:
-./runForDev.sh
-
-# After making code changes:
-npm run dev:docker:clean
-
-
-# To run tests, then clean up the test docker compose resources:
-npm install
-npm run dev:host
-
-npm run test:bruno:docker
-npm run test:bruno:docker:clean
-
-# npm run test:mocha:docker
-# npm run test:mocha:docker:clean
-
-npm run test:docker:clean
-
-
-# To remove the database contents and all generated and cached files:
-npm run dev:host:clean
+npm run dev:run:build
+npm run dev:run
 ```
+
+The development compose stack expects a locally trusted CA certificate at `support/development/certs/dev-ca.pem` and mounts it with `NODE_EXTRA_CA_CERTS`. Generate that certificate with your local CA tooling, for example `mkcert -CAROOT`, before starting the stack.
+
+## Integration Audit
+
+Each PDF generation pipeline emits records to ReDBox's `IntegrationAuditService`, surfaced via `GET /:branding/:portal/api/integration-audit/:oid` and the audit dashboard. Records are filed under `integrationName: 'pdf'` with two action types:
+
+- `generatePdfTrigger` — one parent span per `createPDF` call. Captures `triggeredBy` (defaults to `'createPDF'`, override via `options.triggerSource`), `requestSummary.maxRetries`/`baseDelayMs`/`multiplier`, and on completion a `responseSummary.finalStatus` (`success`/`failed`/`skipped`) plus `attemptsRun`.
+- `generatePdf` — one child span per `attemptPDFGeneration` invocation (initial attempt and every background retry). Each child shares the parent's `traceId` and links via `parentSpanId`. `requestSummary` carries `attempt`, `url`, `sourceUrlBase`, `readinessStrategy`, and `pdfPrefix`. On success `responseSummary` includes `fileId` and `pdfBufferSize`; on failure it includes `errorTag` (e.g. `BrowserError`, `PDFRenderError`, `DatastreamSaveError`) plus the underlying `cause` message.
+
+The hook owns its own audit identifiers in `src/api/services/PDFAudit.ts` rather than registering with `redbox-core`. The relevant `redbox-core` types are widened (`IntegrationAuditNameLike`, `IntegrationAuditActionLike`) so hooks can ship new audit categories without a core release.
+
+Audit calls degrade gracefully: if the global `IntegrationAuditService` is not available (e.g. in unit tests), `startPdfAudit`/`completePdfAudit`/`failPdfAudit` no-op and PDF generation continues unchanged.
+
+## Structure
+
+- `src/index.ts`: hook entrypoint using `defineRedboxHook()`
+- `src/api/controllers`: hook controllers
+- `src/api/services`: hook services
+- `src/config`: configuration and reusable form definition helpers
+- `src/form-config`: form config exports
+- `test/unit`: fast hook-local TypeScript tests
+- `test/integration`: portal integration tests

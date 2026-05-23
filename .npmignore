@@ -1,5 +1,4 @@
 # compiled output
-/dist
 /dist-server
 /tmp
 /out-tsc
@@ -42,10 +41,9 @@ Thumbs.db
 
 # exclude dev and test resources from the built package
 .circleci/
-.github/
 support/
 test/
-typescript/
+src/
 .dockerignore
 .editorconfig
 .gitignore
@@ -53,4 +51,3 @@ typescript/
 .nvmrc
 runForDev.sh
 tsconfig.json
-*.iml

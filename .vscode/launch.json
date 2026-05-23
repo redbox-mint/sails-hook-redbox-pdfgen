@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug sails-hook-redbox-pdfgen",
+      "type": "node",
+      "request": "attach",
+      "port": 9876,
+      "address": "localhost",
+      "localRoot": "${workspaceFolder}",
+      "remoteRoot": "/opt/redbox-portal/node_modules/@researchdatabox/sails-hook-redbox-pdfgen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ]
+}

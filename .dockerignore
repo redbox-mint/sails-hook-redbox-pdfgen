@@ -1,4 +1,4 @@
 .circleci/
 .idea/
 node_modules/
-tmp-data/
+support/.tmp/
