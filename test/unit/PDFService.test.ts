@@ -201,6 +201,46 @@ describe('PDFService Unit Tests', () => {
         });
     });
 
+    it('should retry datastream save failures in the background retry loop', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {
+            retryDelayMs: 10
+        };
+
+        storageDiskPutStub.onFirstCall().rejects(new Error('temporary storage failure'));
+        storageDiskPutStub.onSecondCall().resolves();
+
+        const observable = pdfService.createPDF('oid-storage-retry', record, options, {});
+        const result = await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
+
+        expect(result).to.equal(record);
+        expect(storageDiskPutStub.callCount).to.equal(1);
+
+        await waitForAssertion(() => {
+            expect(storageDiskPutStub.calledTwice).to.be.true;
+            expect(addDatastreamStub.calledOnce).to.be.true;
+        });
+    });
+
+    it('should use the readiness strategy resolved before navigation', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {
+            readinessStrategy: 'networkIdle'
+        };
+
+        mockPage.goto.callsFake(async () => {
+            options.readinessStrategy = 'selector';
+        });
+
+        const service: any = pdfService;
+        await Effect.runPromise(service.attemptPDFGeneration('oid-stable-readiness', record, options, { name: 'default' }, 1));
+
+        expect(mockPage.waitForNetworkIdle.calledOnce).to.be.true;
+        expect(mockPage.waitForSelector.called).to.be.false;
+    });
+
     it('should await auth headers before navigation', async () => {
         const record = { metaMetadata: { brandId: 1 } };
         let releaseHeaders: (() => void) | undefined;
@@ -334,5 +374,30 @@ describe('PDFService Unit Tests', () => {
             expect(mockPage.goto.callCount).to.equal(2);
         });
         expect(globalAny.sails.log.warn.calledWithMatch(/Retry scheduled: true/)).to.be.true;
+    });
+
+    it('should cancel a pending retry when a fresh request succeeds during the retry delay', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = {
+            maxRetries: 1,
+            retryDelayMs: 50
+        };
+
+        mockPage.goto.onFirstCall().rejects(new Error('Navigation timeout'));
+        mockPage.goto.onSecondCall().resolves();
+
+        const firstObservable = pdfService.createPDF('oid-1', record, options, {});
+        await new Promise((resolve, reject) => {
+            firstObservable.subscribe({ next: resolve, error: reject });
+        });
+
+        const secondObservable = pdfService.createPDF('oid-1', record, options, {});
+        await new Promise((resolve, reject) => {
+            secondObservable.subscribe({ next: resolve, error: reject });
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 90));
+
+        expect(mockPage.goto.callCount).to.equal(2);
     });
 });

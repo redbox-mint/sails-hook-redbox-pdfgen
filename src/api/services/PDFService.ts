@@ -11,7 +11,7 @@ import {
   Datastream,
   DatastreamService
 } from '@researchdatabox/redbox-core';
-import { Cause, Duration, Effect } from 'effect';
+import { Cause, Duration, Effect, Fiber } from 'effect';
 import type { PdfgenConfig } from '../../config/pdfgen';
 import {
   BrowserError,
@@ -52,6 +52,11 @@ export namespace Services {
   export class PDF extends services.Core.Service {
 
     private processMap: Set<string> = new Set<string>();
+    private retryTasks: Map<string, {
+      token: symbol;
+      fiber?: Fiber.RuntimeFiber<void, never>;
+      interruptReason?: 'shutdown' | 'superseded';
+    }> = new Map();
     private DatastreamService!: DatastreamService;
     protected _exportedMethods: any = [
       'createPDF',
@@ -66,6 +71,37 @@ export namespace Services {
           this.DatastreamService = sails.services[datastreamServiceName] as unknown as DatastreamService;
         }
       });
+      if (typeof sails.on === 'function') {
+        sails.on('lower', () => this.shutdownPDFRetries());
+      }
+    }
+
+    public async shutdownPDFRetries(): Promise<void> {
+      const tasks = Array.from(this.retryTasks.values());
+      await Promise.all(tasks.map(async (task) => {
+        task.interruptReason = 'shutdown';
+        if (task.fiber == null) {
+          return;
+        }
+        try {
+          await Effect.runPromise(Fiber.interrupt(task.fiber));
+        } catch (error) {
+          sails.log.warn('PDFService::Failed to interrupt PDF retry task during shutdown.', error);
+        }
+      }));
+    }
+
+    private cancelPendingRetry(currentURL: string): void {
+      const task = this.retryTasks.get(currentURL);
+      if (task == null) {
+        return;
+      }
+      task.interruptReason = 'superseded';
+      if (task.fiber != null) {
+        Effect.runPromise(Fiber.interrupt(task.fiber)).catch((error) => {
+          sails.log.warn('PDFService::Failed to interrupt superseded PDF retry task.', error);
+        });
+      }
     }
 
     private logWarn(message: string, ...args: Array<unknown>) {
@@ -438,6 +474,10 @@ export namespace Services {
         const maxRetries = this.getOption(brand, options, 'maxRetries', 2);
         const baseDelayMs = this.getOption(brand, options, 'retryDelayMs', 5000);
         const multiplier = this.getOption(brand, options, 'retryBackoffMultiplier', 2);
+        const sourceUrlBase = this.getOption(brand, options, 'sourceUrlBase', `/${brand.name}/rdmp/record/view`);
+        const pdfgenAppUrlOverride = this.getOption(brand, options, 'appUrlOverride');
+        const baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
+        const currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
         const triggerSource = (options && typeof options === 'object' && typeof options.triggerSource === 'string')
           ? options.triggerSource
           : 'createPDF';
@@ -488,12 +528,21 @@ export namespace Services {
           });
         };
 
-        const runBackgroundRetries = (remainingRetries: number, nextAttempt: number): Effect.Effect<void, never> =>
+        const runBackgroundRetries = (retryToken: symbol, remainingRetries: number, nextAttempt: number): Effect.Effect<void, never> =>
           Effect.gen(this, function* () {
+              const retryTask = this.retryTasks.get(currentURL);
+              if (retryTask?.token !== retryToken) {
+                closeParent('skipped');
+                return;
+              }
               const retryIndex = maxRetries - remainingRetries;
               const delayMs = baseDelayMs * Math.pow(multiplier, retryIndex);
               yield* this.logWarn(`PDFService::Scheduling retry ${nextAttempt - 1} of ${maxRetries} for ${oid} in ${delayMs}ms`);
               yield* Effect.sleep(Duration.millis(delayMs));
+              if (this.retryTasks.get(currentURL)?.token !== retryToken) {
+                closeParent('skipped');
+                return;
+              }
               attemptsRun += 1;
               yield* this.attemptPDFGeneration(oid, record, options, brand, nextAttempt, parentAuditCtx).pipe(
                 Effect.matchEffect({
@@ -504,7 +553,7 @@ export namespace Services {
                         return this.logError(`PDFService::Max retries exhausted for ${oid} or non-retryable error.`, error)
                           .pipe(Effect.zipRight(Effect.sync(() => closeParent('failed', error))));
                       }
-                      return runBackgroundRetries(remainingRetries - 1, nextAttempt + 1);
+                      return runBackgroundRetries(retryToken, remainingRetries - 1, nextAttempt + 1);
                     }
                     return this.logWarn(`PDFService::non-retryable failure, skipping`, error)
                       .pipe(Effect.zipRight(Effect.sync(() => closeParent('failed', error))));
@@ -516,7 +565,10 @@ export namespace Services {
         attemptsRun += 1;
         return yield* this.attemptPDFGeneration(oid, record, options, brand, 1, parentAuditCtx).pipe(
           Effect.matchEffect({
-            onSuccess: () => Effect.sync(() => closeParent('success')),
+            onSuccess: () => Effect.sync(() => {
+              this.cancelPendingRetry(currentURL);
+              closeParent('success');
+            }),
             onFailure: (error: PDFError) => {
               if (this.isRetryable(error)) {
                 if (maxRetries <= 0) {
@@ -527,7 +579,34 @@ export namespace Services {
                 }
                 return Effect.gen(this, function* () {
                   yield* this.logWarn(`PDFService::Best-effort generation failed for ${oid}, but not blocking workflow. Retry scheduled: true. Error: ${error?.name} - ${error?.message}`);
-                  yield* Effect.forkDaemon(runBackgroundRetries(maxRetries, 2));
+                  const retryToken = Symbol(currentURL);
+                  this.retryTasks.set(currentURL, { token: retryToken });
+                  const retryEffect = runBackgroundRetries(retryToken, maxRetries, 2).pipe(
+                    Effect.onInterrupt(() => Effect.sync(() => {
+                      const task = this.retryTasks.get(currentURL);
+                      if (task?.token !== retryToken) {
+                        return;
+                      }
+                      if (task.interruptReason === 'shutdown') {
+                        closeParent('failed', new Error('PDF retry interrupted during service shutdown'));
+                        return;
+                      }
+                      closeParent('skipped');
+                    })),
+                    Effect.ensuring(Effect.sync(() => {
+                      const task = this.retryTasks.get(currentURL);
+                      if (task?.token === retryToken) {
+                        this.retryTasks.delete(currentURL);
+                      }
+                    }))
+                  );
+                  const fiber = yield* Effect.forkDaemon(retryEffect);
+                  const retryTask = this.retryTasks.get(currentURL);
+                  if (retryTask?.token === retryToken) {
+                    retryTask.fiber = fiber;
+                  } else {
+                    yield* Fiber.interrupt(fiber).pipe(Effect.asVoid);
+                  }
                 });
               }
 

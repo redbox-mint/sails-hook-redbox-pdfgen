@@ -380,6 +380,30 @@ describe('PDFService Integration Audit', () => {
         expect(parentFinal!.args[1].responseSummary.finalStatus).to.equal('success');
     });
 
+    it('fails the parent audit when a pending background retry is interrupted on shutdown', async () => {
+        const record = { metaMetadata: { brandId: 1 } };
+        const options = { maxRetries: 1, retryDelayMs: 500 };
+
+        mockPage.goto.rejects(new Error('transient'));
+
+        const observable = pdfService.createPDF('oid-shutdown-retry', record, options, {});
+        await new Promise((resolve, reject) => {
+            observable.subscribe({ next: resolve, error: reject });
+        });
+
+        await pdfService.shutdownPDFRetries();
+
+        const parentFailure = auditStub.failAudit.getCalls().find((call: any) =>
+            call.args[0]?.integrationAction === 'generatePdfTrigger'
+        );
+        expect(parentFailure).to.exist;
+        expect(parentFailure!.args[2].responseSummary).to.deep.equal({
+            attemptsRun: 1,
+            finalStatus: 'failed'
+        });
+        expect(mockPage.goto.calledOnce).to.be.true;
+    });
+
     it('still generates a PDF when IntegrationAuditService global is missing', async () => {
         clearAuditServiceStub();
 
