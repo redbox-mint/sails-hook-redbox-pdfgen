@@ -284,7 +284,7 @@ export namespace Services {
         yield* Effect.sync(() => sails.log.verbose(`PDFService::Page ready: ${currentURL}, generating PDF...`));
 
         const date = DateTime.now().toMillis();
-        const fileId = `${pdfPrefix}-${oid}-${date}.pdf`;
+        const fileId = `${pdfPrefix ? `${pdfPrefix}-` : ''}${oid}-${date}.pdf`;
 
         const rawPdfOptions = this.getOption(brand, options, 'PDFOptions') || {};
         const { path: _ignoredPath, ...pdfOptions } = rawPdfOptions;
@@ -303,6 +303,9 @@ export namespace Services {
         yield* this.logDebug(`PDFService::Generated PDF buffer`);
         yield* Effect.sync(() => sails.log.verbose(`PDFService::Saving PDF: ${oid}`));
 
+        if (typeof StorageManagerService === 'undefined' || StorageManagerService == null) {
+          return yield* Effect.fail(new DatastreamSaveError({ oid, cause: new Error('StorageManagerService global is not available') }));
+        }
         const stagingDisk = StorageManagerService.stagingDisk();
         yield* Effect.tryPromise({
           try: () => stagingDisk.put(fileId, pdfBuffer),
