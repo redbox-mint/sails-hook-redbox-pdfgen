@@ -7,7 +7,7 @@ import { pdfgen } from './config/pdfgen.js';
 export { };
 
 const hook = defineRedboxHook({
-  initialize(sails, cb) {
+  async initialize(sails) {
     const configService = (sails.services as Record<string, any>)?.configservice;
     const existingAgendaQueueConfig = sails.config.agendaQueue;
     if (configService?.mergeHookConfig) {
@@ -38,21 +38,10 @@ const hook = defineRedboxHook({
       }
     });
 
-    cb();
   },
   routes: {
     before: {},
     after: {}
-  },
-  configure(sails) {
-    // The hook lifecycle exposed by defineRedboxHook uses the classical
-    // callback contract. Sails' default analogOrClassical implementation
-    // sniffing can misclassify the generated wrapper and invoke the callback
-    // twice, so opt into the explicit callback behavior when using the
-    // default configuration.
-    if (sails.config.implementationSniffingTactic === 'analogOrClassical') {
-      sails.config.implementationSniffingTactic = 'classical';
-    }
   },
   defaults: {
     __configKey__: {
