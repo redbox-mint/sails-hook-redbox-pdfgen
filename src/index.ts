@@ -44,7 +44,16 @@ const hook = defineRedboxHook({
     before: {},
     after: {}
   },
-  configure() { },
+  configure(sails) {
+    // The hook lifecycle exposed by defineRedboxHook uses the classical
+    // callback contract. Sails' default analogOrClassical implementation
+    // sniffing can misclassify the generated wrapper and invoke the callback
+    // twice, so opt into the explicit callback behavior when using the
+    // default configuration.
+    if (sails.config.implementationSniffingTactic === 'analogOrClassical') {
+      sails.config.implementationSniffingTactic = 'classical';
+    }
+  },
   defaults: {
     __configKey__: {
       _hookTimeout: 120000
