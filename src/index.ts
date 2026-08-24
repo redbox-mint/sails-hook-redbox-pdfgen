@@ -39,12 +39,12 @@ const hook = defineRedboxHook({
     });
 
     cb();
+
   },
   routes: {
     before: {},
     after: {}
   },
-  configure() { },
   defaults: {
     __configKey__: {
       _hookTimeout: 120000

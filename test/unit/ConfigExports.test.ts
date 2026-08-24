@@ -9,24 +9,26 @@ const { pdfgen } = require('../../src/config/pdfgen');
 describe('Config exports', () => {
   it('registers the PDF creation queue job', () => {
     expect(agendaQueue.jobs).to.deep.include({
-      name: 'PDFService-CreatePDF',
-      fnName: 'rdmpservice.queuedTriggerSubscriptionHandler',
-      options: {
-        lockLifetime: 120 * 1000,
-        lockLimit: 1,
-        concurrency: 1
+      'PDFService-CreatePDF': {
+        fnName: 'rdmpservice.queuedTriggerSubscriptionHandler',
+        options: {
+          lockLifetime: 120 * 1000,
+          lockLimit: 1,
+          concurrency: 1
+        }
       }
     });
   });
 
   it('preserves existing agenda queue jobs when the hook config is merged', () => {
-    const existingJob = {
-      name: 'SolrSearchService-CreateOrUpdateIndex',
-      fnName: 'solrsearchservice.createOrUpdateIndex'
+    const existingJobs = {
+      'SolrSearchService-CreateOrUpdateIndex': {
+        fnName: 'solrsearchservice.createOrUpdateIndex'
+      }
     };
-    const mergedJobs = mergeAgendaQueueJobs([existingJob], agendaQueue.jobs);
+    const mergedJobs = mergeAgendaQueueJobs(existingJobs, agendaQueue.jobs);
 
-    expect(mergedJobs.map((job: any) => job.name)).to.deep.equal([
+    expect(Object.keys(mergedJobs)).to.deep.equal([
       'SolrSearchService-CreateOrUpdateIndex',
       'PDFService-CreatePDF'
     ]);
@@ -43,9 +45,10 @@ describe('Config exports', () => {
   });
 
   it('adds the PDF queue job during runtime initialization without replacing existing jobs', (done) => {
-    const existingJob = {
-      name: 'SolrSearchService-CreateOrUpdateIndex',
-      fnName: 'solrsearchservice.createOrUpdateIndex'
+    const existingJobs = {
+      'SolrSearchService-CreateOrUpdateIndex': {
+        fnName: 'solrsearchservice.createOrUpdateIndex'
+      }
     };
     const sails = {
       config: {
@@ -53,7 +56,7 @@ describe('Config exports', () => {
           options: {
             backend: 'mongodb'
           },
-          jobs: [existingJob]
+          jobs: existingJobs
         }
       },
       services: {
@@ -69,7 +72,7 @@ describe('Config exports', () => {
     };
 
     hookFactory(sails).initialize(() => {
-      expect(sails.config.agendaQueue.jobs.map((job: any) => job.name)).to.deep.equal([
+      expect(Object.keys(sails.config.agendaQueue.jobs)).to.deep.equal([
         'SolrSearchService-CreateOrUpdateIndex',
         'PDFService-CreatePDF'
       ]);
