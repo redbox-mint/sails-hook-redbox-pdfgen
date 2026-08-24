@@ -7,7 +7,7 @@ import { pdfgen } from './config/pdfgen.js';
 export { };
 
 const hook = defineRedboxHook({
-  async initialize(sails) {
+  initialize(sails, cb) {
     const configService = (sails.services as Record<string, any>)?.configservice;
     const existingAgendaQueueConfig = sails.config.agendaQueue;
     if (configService?.mergeHookConfig) {
@@ -38,6 +38,7 @@ const hook = defineRedboxHook({
       }
     });
 
+    cb();
   },
   routes: {
     before: {},

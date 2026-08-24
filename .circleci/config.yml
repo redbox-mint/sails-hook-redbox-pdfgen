@@ -86,6 +86,7 @@ jobs:
         type: enum
         enum:
           - beta
+          - rc
           - release
       release_version:
         type: string
@@ -158,7 +159,7 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-[Rr][Cc][0-9]+)?$/
       - test-unit:
           requires:
             - build
@@ -166,7 +167,7 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-[Rr][Cc][0-9]+)?$/
       - test-bruno:
           requires:
             - build
@@ -174,7 +175,7 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-[Rr][Cc][0-9]+)?$/
       - npm-publish-package:
           name: publish-release
           release_kind: release
@@ -190,6 +191,21 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+      - npm-publish-package:
+          name: publish-rc
+          release_kind: rc
+          release_version: ""
+          dist_tag: next
+          context:
+            - npm-publish
+          requires:
+            - test-unit
+            - test-bruno
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-[Rr][Cc][0-9]+$/
 
   npm_beta_publish:
     when:
