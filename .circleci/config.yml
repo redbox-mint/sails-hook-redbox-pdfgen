@@ -7,8 +7,7 @@ jobs:
     steps:
       - checkout
       - run: npm install && node_modules/.bin/tsc
-      # run tests!
-      # - run: npm test
+      - run: npm test
       # # store test results
       # - store_test_results:
       #     path: test_results
@@ -29,8 +28,10 @@ workflows:
     jobs:
       - build_and_publish:
           filters:
+            branches:
+              ignore: /.*/
             tags:
-              only: /^v.*/
+              only: /^v1\.2\.[0-9]+$/
 
 # jobs:
 #   build:

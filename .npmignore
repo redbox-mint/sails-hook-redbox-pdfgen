@@ -44,3 +44,6 @@ Thumbs.db
 angular
 test/angular
 sailsWorkingDir
+test/
+support/testing/
+support/.tmp/

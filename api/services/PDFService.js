@@ -11,11 +11,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Services = void 0;
 const Rx_1 = require("rxjs/Rx");
-const puppeteer_1 = require("puppeteer");
+const Puppeteer10_1 = require("../../lib/Puppeteer10");
 const fs = require("fs-extra");
 const moment = require("moment");
-const os = require('os');
-const path = require('path');
 const redbox_core_types_1 = require("@researchdatabox/redbox-core-types");
 var Services;
 (function (Services) {
@@ -58,36 +56,37 @@ var Services;
                     sails.log.warn("PDFService::API token for PDF generation is not set. Skipping generation: " + oid);
                     return;
                 }
-                sails.log.verbose(`PDFService::Acquiring browser from pool....`);
-                const tmpUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfgen'));
-                const browser = yield puppeteer_1.launch({ executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox', `--user-data-dir=${tmpUserDataDir}`] });
-                sails.log.verbose(`PDFService::Creating new page....`);
-                const page = yield browser.newPage();
-                page.setExtraHTTPHeaders({
-                    Authorization: 'Bearer ' + token
-                });
-                if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
-                    page.on('console', msg => sails.log.verbose(`PDFService::Chrome Console:${msg.text}`));
-                    page.on('pageerror', error => {
-                        sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
-                    });
-                    page.on('response', response => {
-                        sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${response.url}`);
-                    });
-                    page.on('requestfailed', request => {
-                        sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
-                    });
-                }
-                let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
-                let pdfgenAppUrlOverride = _.get(sails.config, 'pdfgen.appUrlOverride');
-                sails.log.verbose('PDFService::sourceUrlBase ' + sourceUrlBase);
-                sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride ' + pdfgenAppUrlOverride);
-                let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
-                let currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
-                this.processMap[currentURL] = true;
-                sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
-                yield page.goto(currentURL);
+                sails.log.verbose(`PDFService::Launching browser....`);
+                let browser;
+                let currentURL;
                 try {
+                    browser = yield (0, Puppeteer10_1.launch)({ executablePath: options['chrome_path'] ? options['chrome_path'] : '/usr/bin/google-chrome-stable', headless: true, args: ['--no-sandbox'] });
+                    sails.log.verbose(`PDFService::Creating new page....`);
+                    const page = yield browser.newPage();
+                    yield page.setExtraHTTPHeaders({
+                        Authorization: 'Bearer ' + token
+                    });
+                    if (_.get(sails.config, 'pdfgen.enableChromeLogging') == 'true') {
+                        page.on('console', msg => sails.log.verbose(`PDFService::Chrome Console:${msg.text}`));
+                        page.on('pageerror', error => {
+                            sails.log.error(`PDFService::Chrome Page Error: ${error.message}`);
+                        });
+                        page.on('response', response => {
+                            sails.log.verbose(`PDFService::Chrome Response: ${response.status}, URL:${response.url}`);
+                        });
+                        page.on('requestfailed', request => {
+                            sails.log.error(`PDFService::Chrome Error: ${request.failure().errorText}, URL: ${request.url}`);
+                        });
+                    }
+                    let sourceUrlBase = options['sourceUrlBase'] || '/default/rdmp/record/view';
+                    let pdfgenAppUrlOverride = _.get(sails.config, 'pdfgen.appUrlOverride');
+                    sails.log.verbose('PDFService::sourceUrlBase ' + sourceUrlBase);
+                    sails.log.verbose('PDFService::sails.config.pdfgen.appUrlOverride ' + pdfgenAppUrlOverride);
+                    let baseUrl = pdfgenAppUrlOverride || sails.config.appUrl;
+                    currentURL = `${baseUrl}${sourceUrlBase}/${oid}`;
+                    this.processMap[currentURL] = true;
+                    sails.log.debug(`PDFService::Chromium loading page: ${currentURL}`);
+                    yield page.goto(currentURL);
                     yield page.waitForSelector(options['waitForSelector'], { timeout: 60000 });
                     sails.log.verbose(`PDFService::loaded page: ${currentURL}, waiting further...`);
                     yield this.delay(1500);
@@ -122,25 +121,37 @@ var Services;
                         savedPdfResponse = yield datastreamService.addDatastream(oid, datastream);
                     }
                     sails.log.debug(`PDFService::Saved PDF to storage: ${oid}`);
-                    _.unset(this.processMap[currentURL]);
                 }
                 catch (e) {
                     sails.log.error(`PDFService::Error encountered while generating the PDF: ${oid}`);
                     sails.log.error(e);
                     sails.log.error(JSON.stringify(e));
-                    try {
-                        yield browser.close();
-                    }
-                    catch (e) {
-                        sails.log.error(`PDFService:: Failed to close browser after error`);
-                        sails.log.error(e);
-                    }
+                    throw e;
                 }
                 finally {
-                    if (browser && browser.process() != null) {
-                        browser.process().kill('SIGTERM');
+                    try {
+                        if (browser) {
+                            yield browser.close();
+                        }
                     }
-                    fs.removeSync(tmpUserDataDir, { recursive: true });
+                    catch (closeError) {
+                        sails.log.error('PDFService::Failed to close browser after rendering');
+                        sails.log.error(closeError);
+                    }
+                    finally {
+                        try {
+                            if (browser && browser.process() != null) {
+                                browser.process().kill('SIGTERM');
+                            }
+                        }
+                        catch (killError) {
+                            sails.log.error('PDFService::Failed to terminate browser process');
+                            sails.log.error(killError);
+                        }
+                        if (currentURL) {
+                            delete this.processMap[currentURL];
+                        }
+                    }
                 }
                 return record;
             });
