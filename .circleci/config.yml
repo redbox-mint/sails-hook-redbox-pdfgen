@@ -2,11 +2,12 @@ version: 2.1
 jobs:
   build_and_publish:
     docker:
-      - image: circleci/node:12.16.0
+      - image: cimg/node:22.23.4
     working_directory: ~/repo
     steps:
       - checkout
-      - run: npm install && node_modules/.bin/tsc
+      - run: npm ci --ignore-scripts
+      - run: npm run build -- --skipLibCheck --types node
       - run: npm test
       # # store test results
       # - store_test_results:
@@ -21,7 +22,7 @@ jobs:
           command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/repo/.npmrc
       - run:
           name: Publish package
-          command: npm publish --access public
+          command: npm publish --access public --tag legacy
 
 workflows:
   publish:

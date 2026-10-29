@@ -35,6 +35,15 @@ function bounded<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
+// The legacy lockfile has callback-only fs-extra; UTS hoists a newer version.
+// The callback form works with both and keeps deletion inside the awaited path.
+function removeProfile(profile: string): Promise<void> {
+  if (!profile) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    fs.remove(profile, error => error ? reject(error) : resolve());
+  });
+}
+
 export async function launch(options: any) {
   let runner;
   class ManagedRunner extends BrowserRunner {
@@ -60,11 +69,11 @@ export async function launch(options: any) {
             helper.removeEventListeners(this._listeners);
             // Only Puppeteer's own temporary profile belongs to this runner.
             // Never delete an explicit caller-supplied userDataDir.
-            (this.profile ? fs.remove(this.profile) : Promise.resolve()).then(resolve, reject);
+            removeProfile(this.profile).then(resolve, reject);
           });
         });
       } catch (error) {
-        this._processClosing = this.profile ? fs.remove(this.profile) : Promise.resolve();
+        this._processClosing = removeProfile(this.profile);
         this._processClosing.catch(() => {});
         throw error;
       }
